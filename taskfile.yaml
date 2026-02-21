@@ -1,0 +1,50 @@
+version: '3'
+
+silent: true
+vars:
+  BANNER: 'echo -e "\\033[1;33m$\\033[0m"'
+  BINARY: kredenv
+  BUILD_FLAGS: -ldflags="-s -w" -trimpath
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - echo "run 'task --list' to see available tasks"
+
+  tidy:
+    desc: Tidy up the project
+    cmds:
+      - "{{.BANNER}} tidying up"
+      - go mod tidy
+      - go mod verify
+
+  build:
+    desc: Build for current platform
+    vars:
+      GOOS:
+        sh: go env GOOS
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - "{{.BANNER}} [DEV] Building {{.BINARY}} binary for {{.GOOS}}/{{.GOARCH}}"
+      - cmd: "CGO_ENABLED=0 go build {{.BUILD_FLAGS}} -o dist/{{.BINARY}} ./main.go"
+        platforms: [linux, darwin]
+      - cmd: "CGO_ENABLED=0 go build {{.BUILD_FLAGS}} -o dist/{{.BINARY}}.exe ./main.go"
+        platforms: [windows]
+
+  snapshot:
+    desc: Test release build locally without publishing
+    cmds:
+      - "{{.BANNER}} Running a release snapshot"
+      - goreleaser release --snapshot --clean
+      - echo ""
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - "{{.BANNER}} Cleaning up build and release artifacts"
+      - cmd: rm -rf dist/
+        platforms: [linux, darwin]
+      - cmd: powershell.exe -NoProfile -Command "if (Test-Path 'dist/') { Remove-Item -Recurse -Force 'dist/' }"
+        platforms: [windows]
