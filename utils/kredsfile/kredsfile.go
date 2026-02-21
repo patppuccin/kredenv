@@ -12,11 +12,11 @@ import (
 
 var MinimalTemplate = `# .kredsfile
 # safe to commit — contains no secrets
-# kredenv errors on missing 'need', warns on missing 'maybe'
+# kredenv errors on missing 'needs', warns on missing 'maybe'
 
 # recurse to <depth>
 
-# need <key> or <fallback> as <env_var>
+# needs <key> as <env_var>
 # maybe <key> as <env_var>
 `
 
