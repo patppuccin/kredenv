@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/patppuccin/kredenv/consts"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
 	"github.com/spf13/cobra"
 )
 
@@ -20,30 +19,17 @@ var unloadCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		path, err := kredsfile.Locate()
-		if err != nil {
-			console.Error(err.Error())
-			os.Exit(1)
-		}
-		if path == "" {
-			console.Warn("no .kredsfile found")
-			os.Exit(1)
+		if os.Getenv("__KREDENV_BIN") == "" {
+			console.Warn("Shell hook not detected, run '" + consts.AppName + " hook <shell>' to set up")
+			return
 		}
 
-		kf, errs := kredsfile.Parse(path)
-		if len(errs) > 0 {
-			errMsgs := make([]string, len(errs))
-			for i, err := range errs {
-				errMsgs[i] = err.Error()
-			}
-			console.ErrorGroup("Failed to parse "+path, errMsgs)
-			os.Exit(1)
+		loaded := os.Getenv("KREDENV_LOADED")
+		if loaded != "" {
+			console.Warn("Secrets still loaded: " + loaded)
+			return
 		}
-
-		// TODO: emit unset statements for shell to eval
-		for _, secret := range kf.Secrets {
-			fmt.Printf("unset %s\n", secret.Alias)
-		}
+		console.Success("Secrets unloaded from session")
 	},
 }
 

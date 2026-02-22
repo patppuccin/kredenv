@@ -28,7 +28,7 @@ var listCmd = &cobra.Command{
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if flagListAll {
-			listAllFromKeyring()
+			listFromKeyring()
 		} else {
 			listFromKredsfile()
 		}
@@ -84,7 +84,7 @@ func listFromKredsfile() {
 	}
 }
 
-func listAllFromKeyring() {
+func listFromKeyring() {
 	keys, err := keyring.List()
 	if err != nil {
 		console.Error(err.Error())

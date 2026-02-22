@@ -1,85 +1,63 @@
 package shells
 
 import (
+	_ "embed"
+	"slices"
 	"strings"
 )
 
+//go:embed integrations/bash-hook.sh
+var hookBash string
+
+//go:embed integrations/zsh-hook.sh
+var hookZsh string
+
+//go:embed integrations/fish-hook.fish
+var hookFish string
+
+//go:embed integrations/pwsh-hook.ps1
+var hookPowershell string
+
+//go:embed integrations/nushell-hook.nu
+var hookNushell string
+
 type Shell struct {
-	Name    string
-	Aliases []string
-	Hook    func() string
+	Name     string
+	Aliases  []string
+	SetupCmd string
+	Hook     string
 }
 
 var Supported = []Shell{
 	{
-		Name:    "bash",
-		Aliases: []string{},
-		Hook: func() string {
-			return `_kredenv_hook() {
-  local previous="$OLDPWD"
-  local current="$PWD"
-  if [ "$previous" != "$current" ]; then
-    if output=$(kredenv load 2>/dev/null); then
-      eval "$output"
-    fi
-  fi
-}
-
-PROMPT_COMMAND="_kredenv_hook;${PROMPT_COMMAND}"`
-		},
+		Name:     "bash",
+		Aliases:  []string{},
+		SetupCmd: `echo 'eval "$(kredenv hook bash)"' >> ~/.bashrc`,
+		Hook:     hookBash,
 	},
 	{
-		Name:    "zsh",
-		Aliases: []string{},
-		Hook: func() string {
-			return `_kredenv_hook() {
-  if output=$(kredenv load 2>/dev/null); then
-    eval "$output"
-  fi
-}
-
-autoload -Uz add-zsh-hook
-add-zsh-hook chpwd _kredenv_hook`
-		},
+		Name:     "zsh",
+		Aliases:  []string{},
+		SetupCmd: `echo 'eval "$(kredenv hook zsh)"' >> ~/.zshrc`,
+		Hook:     hookZsh,
 	},
 	{
-		Name:    "fish",
-		Aliases: []string{},
-		Hook: func() string {
-			return `function _kredenv_hook --on-variable PWD
-  if set output (kredenv load 2>/dev/null)
-    eval $output
-  end
-end`
-		},
+		Name:     "fish",
+		Aliases:  []string{},
+		SetupCmd: `echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish`,
+		Hook:     hookFish,
 	},
 	{
-		Name:    "powershell",
-		Aliases: []string{"pwsh"},
-		Hook: func() string {
-			return `function global:prompt {
-  $output = kredenv load 2>$null
-  if ($output) {
-    $output | Invoke-Expression
-  }
-  "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) "
-}`
-		},
+		Name:     "powershell",
+		Aliases:  []string{"pwsh"},
+		SetupCmd: `Add-Content $PROFILE 'Invoke-Expression (& { (kredenv hook powershell | Out-String) })'`,
+		Hook:     hookPowershell,
 	},
 	{
-		Name:    "nushell",
-		Aliases: []string{"nu"},
-		Hook: func() string {
-			return `$env.config.hooks.env_change.PWD = ($env.config.hooks.env_change.PWD | append {|before, after|
-  let output = (kredenv load | complete)
-  if $output.exit_code == 0 {
-    $output.stdout | lines | each {|line|
-      let parts = ($line | str replace "export " "" | split row "=")
-      load-env {($parts.0): ($parts.1 | str trim -c '"')}
-    }
-  }
-})`
-		},
+		Name:     "nushell",
+		Aliases:  []string{"nu"},
+		SetupCmd: `kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")`,
+		Hook:     hookNushell,
 	},
 }
 
@@ -88,22 +66,29 @@ func Get(name string) (*Shell, bool) {
 		if s.Name == name {
 			return &Supported[i], true
 		}
-		for _, a := range s.Aliases {
-			if a == name {
-				return &Supported[i], true
-			}
+		if slices.Contains(s.Aliases, name) {
+			return &Supported[i], true
 		}
 	}
 	return nil, false
 }
 
 func Names() string {
-	names := make([]string, len(Supported))
-	for i, s := range Supported {
-		names[i] = s.Name
+	names := make([]string, 0, len(Supported))
+	for _, s := range Supported {
+		curr := s.Name
 		if len(s.Aliases) > 0 {
-			names[i] += " (" + strings.Join(s.Aliases, ", ") + ")"
+			curr += "/" + strings.Join(s.Aliases, "/")
 		}
+		names = append(names, curr)
 	}
 	return strings.Join(names, ", ")
+}
+
+func SetupCmds() []string {
+	cmds := make([]string, 0, len(Supported))
+	for _, s := range Supported {
+		cmds = append(cmds, s.SetupCmd)
+	}
+	return cmds
 }

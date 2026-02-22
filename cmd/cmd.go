@@ -39,6 +39,8 @@ func init() {
 	KredEnvCmd.AddCommand(hookCmd)
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "env", Title: "Environment Commands:"})
+	KredEnvCmd.AddCommand(injectCmd)
+	KredEnvCmd.AddCommand(execCmd)
 	KredEnvCmd.AddCommand(loadCmd)
 	KredEnvCmd.AddCommand(unloadCmd)
 	KredEnvCmd.AddCommand(whichCmd)
