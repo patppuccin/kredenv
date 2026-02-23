@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/keyring"
@@ -42,40 +43,46 @@ var setupCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		stored := 0
-		skipped := 0
-		alreadySet := 0
+		stored, skipped, alreadySet := []string{}, []string{}, []string{}
+
+		reader := bufio.NewReader(os.Stdin)
 
 		for _, secret := range kf.Secrets {
 			if keyring.Exists(secret.Key) {
-				alreadySet++
+				alreadySet = append(alreadySet, secret.Key)
 				continue
 			}
 
-			fmt.Printf("Enter value for %q: ", secret.Key)
-			var value string
-			fmt.Scan(&value)
-			fmt.Println()
+			fmt.Printf("\nEnter value for %q: ", secret.Key)
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				console.Error("Could not read input")
+				os.Exit(1)
+			}
+			value := strings.TrimSpace(input)
 
 			if value == "" {
-				console.Warn("Skipping: " + secret.Key)
-				skipped++
+				skipped = append(skipped, secret.Key)
 				continue
 			}
 
 			if err := keyring.Set(secret.Key, value); err != nil {
-				console.Error("Could not store " + secret.Key + ": " + err.Error())
+				console.Error("Could not store " + secret.Key)
 				os.Exit(1)
 			}
 
-			stored++
-			console.Info("Stored: " + secret.Key)
+			stored = append(stored, secret.Key)
 		}
 
-		console.InfoGroup("Setup Complete", []string{
-			"Stored:     " + strconv.Itoa(stored),
-			"Skipped:    " + strconv.Itoa(skipped),
-			"Already Set:" + strconv.Itoa(alreadySet),
+		if len(alreadySet) == len(kf.Secrets) {
+			console.Success("All secrets already set in keyring")
+			return
+		}
+
+		console.InfoGroup("Setup complete", []string{
+			"Stored:      " + strings.Join(stored, ", "),
+			"Skipped:     " + strings.Join(skipped, ", "),
+			"Already set: " + strings.Join(alreadySet, ", "),
 		})
 	},
 }
