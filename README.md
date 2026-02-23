@@ -1,17 +1,191 @@
 # KREDENV
 
-Inject secrets from your OS keyring into your shell environment via a `.kredsfile`.
+[![Latest Release](https://img.shields.io/github/v/release/patppuccin/kredenv)](https://github.com/patppuccin/kredenv/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/patppuccin/kredenv)](https://goreportcard.com/report/github.com/patppuccin/kredenv)
+[![License](https://img.shields.io/github/license/patppuccin/kredenv)](LICENSE)
 
-No plaintext credentials. No `.env` files. Commit your `.kredsfile` safely.
-
-> ⚠️ Work in progress — not ready for use yet.
+Inject secrets and environment variables from your OS keyring into your shell session. No plaintext files. No accidental commits.
 
 ## How it works
 
-- Declare what secrets your project needs in a `.kredsfile`
-- `kredenv` fetches them from your OS keyring and injects them as environment variables
-- Will support major shells (bash, zsh, fish, powershell, nushell)
+kredenv reads a `.kredsfile` in your project directory. Each entry maps an environment variable name to a key stored in your OS keyring. When you `cd` into the directory, kredenv resolves the keys from the keyring and injects them into your shell session. When you leave, they are unloaded.
 
-## Status
+Secrets live in your OS keyring, which is _Keychain_ on _macOS_, _Credential Manager_ on _Windows_, _libsecret_ on _Linux_. They are never written to disk in plaintext and never leave your machine unless you explicitly export them.
 
-Very early development. API and file format subject to change.
+Each developer manages their own keyring. There is no shared secrets file, no `.env` to `.gitignore`, no risk of accidentally committing credentials. As a matter of fact, `.kredsfile` must be committed to your repository, so that collaborators can use it to setup secrets in their own keyring easily.
+
+## Installation
+
+**Via `go install`:**
+
+This is the easiest way to install kredenv.
+
+```sh
+go install github.com/patppuccin/kredenv@latest
+```
+
+**Via prebuilt binary:**
+
+Download the latest release for your platform from the [releases page](https://github.com/patppuccin/kredenv/releases).
+
+## Setup
+
+kredenv requires a shell hook to inject and unload secrets automatically as you navigate directories. Run the appropriate command once and restart your shell session to enable it.
+
+**Bash:**
+
+```sh
+echo 'eval "$(kredenv hook bash)"' >> ~/.bashrc
+```
+
+**Zsh:**
+
+```sh
+echo 'eval "$(kredenv hook zsh)"' >> ~/.zshrc
+```
+
+**Fish:**
+
+```sh
+echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish
+```
+
+**Nushell:**
+
+For Nushell, saving the hook to your autoload directory is recommended.
+
+```sh
+kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
+```
+
+**PowerShell:**
+
+```powershell
+Add-Content $PROFILE 'Invoke-Expression (& { (kredenv hook powershell | Out-String) })'
+```
+
+## The `.kredsfile`
+
+Place a `.kredsfile` in your project root. kredenv walks up the directory tree to find the nearest one.
+
+```txt
+# .kredsfile
+# safe to commit - contains no secrets
+# kredenv errors on missing 'needs', warns on missing 'maybe'
+
+# levels to recurse when looking for .kredsfile
+resurse to 3
+
+# mandatory secrets
+needs AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
+
+# namespaced secrets
+needs aws:john-doe-profile:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs aws:john-doe-profile:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
+
+# optional secrets
+maybe ANALYTICS_ID as ANALYTICS_ID
+```
+
+To initialize a `.kredsfile` in the current directory:
+
+```sh
+kredenv init
+```
+
+To store secrets in the keyring:
+
+```sh
+kredenv set AWS_ACCESS_KEY_ID
+kredenv set AWS_SECRET_ACCESS_KEY
+```
+
+It will prompt for the secret value.
+
+To validate your `.kredsfile`:
+
+```sh
+kredenv validate
+```
+
+## Usage
+
+### Setup
+
+| Command                | Description                                        |
+| ---------------------- | -------------------------------------------------- |
+| `kredenv init`         | Initialize a `.kredsfile` in the current directory |
+| `kredenv setup`        | Interactively store missing secrets in the keyring |
+| `kredenv hook <shell>` | Emit the shell integration script                  |
+
+### Environment
+
+| Command              | Description                                              |
+| -------------------- | -------------------------------------------------------- |
+| `kredenv load`       | Show currently loaded secrets                            |
+| `kredenv unload`     | Unload secrets from the current session                  |
+| `kredenv exec <cmd>` | Run a command with secrets injected into its environment |
+| `kredenv which`      | Print the path to the `.kredsfile` in scope              |
+| `kredenv validate`   | Validate `.kredsfile` syntax                             |
+
+### Keyring
+
+| Command                 | Description                                 |
+| ----------------------- | ------------------------------------------- |
+| `kredenv set <key>`     | Store a secret in the keyring               |
+| `kredenv get <key>`     | Retrieve a secret from the keyring          |
+| `kredenv delete <key>`  | Delete a secret from the keyring            |
+| `kredenv list`          | List keys defined in the `.kredsfile`       |
+| `kredenv export`        | Export secrets to stdout or a file          |
+| `kredenv import <file>` | Import secrets from a file into the keyring |
+
+## Running a command with secrets
+
+To run a single command with secrets injected without loading them into your session:
+
+```sh
+kredenv exec terraform apply
+kredenv exec npm run dev
+```
+
+## Caveats
+
+**Linux:** Requires a running keyring daemon (`gnome-keyring` or `kwallet`). Headless environments and most CI systems do not have one. kredenv is intended for local developer machines, not CI pipelines.
+
+**CI / Production:** kredenv is not a secrets manager for shared or remote environments. For CI, use your platform's native secret injection (GitHub Actions secrets, GitLab CI variables, etc.). For production, use a dedicated secrets manager such as HashiCorp Vault, AWS SSM, or 1Password CLI.
+
+**Per-machine:** Keyring secrets are stored per-user, per-machine. Each developer must run `kredenv setup` or `kredenv set` to populate their own keyring.
+
+## Acknowledgements
+
+kredenv is built on the shoulders of these open source projects:
+
+- [**fatih/color**](https://github.com/fatih/color) - For dead-simple terminal styling
+- [**spf13/cobra**](https://github.com/spf13/cobra) - For an intuitive CLI framework
+- [**zalando/go-keyring**](https://github.com/zalando/go-keyring) - The keyring API which does all the heavy lifting and cross-platform compatibility
+- [**mattn/go-isatty**](https://github.com/mattn/go-isatty) - For checking if a terminal is interactive
+
+And to the Go team, for designing a language where a tool like this can go from idea to working binary in a weekend.
+
+## A note on LLMs
+
+_kredenv was not vibe coded_. However, LLMs were used throughout development as a thinking partner to ideate on architecture, critique design decisions, and research edge cases across shell environments. Every decision was reasoned through, understood, and deliberately chosen.
+
+The code, the design, the opinions and most importantly noob'ish coding practices in this tool are the author's own.
+
+## Roadmap
+
+- [ ] Add a reasonable test suite
+- [ ] Guides on integrating with terminal prompt libraries (e.g. Starship, Oh My Posh)
+- [ ] IDE integrations for syntax highlighting and autocompletion
+- [ ] Add support for alternative backends (e.g. local encryption, secrets managers)
+- [ ] Explore a remote sync mechanism for `.kredsfile` and keyring secrets
+
+## Contributing
+
+Not accepting contributions at this time while the project structure and roadmap are being figured out. Feel free to open issues for bugs or ideas. Feedback is welcome even if PRs are not yet.
+
+## License
+
+[MIT](LICENSE)
