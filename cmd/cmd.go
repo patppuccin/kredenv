@@ -35,22 +35,22 @@ func init() {
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "setup", Title: "Setup Commands:"})
 	KredEnvCmd.AddCommand(initCmd)
-	KredEnvCmd.AddCommand(setupCmd)
 	KredEnvCmd.AddCommand(hookCmd)
+	KredEnvCmd.AddCommand(setupCmd)
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "env", Title: "Environment Commands:"})
-	KredEnvCmd.AddCommand(injectCmd)
-	KredEnvCmd.AddCommand(execCmd)
 	KredEnvCmd.AddCommand(loadCmd)
 	KredEnvCmd.AddCommand(unloadCmd)
+	KredEnvCmd.AddCommand(execCmd)
 	KredEnvCmd.AddCommand(whichCmd)
 	KredEnvCmd.AddCommand(validateCmd)
+	KredEnvCmd.AddCommand(injectCmd)
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "keyring", Title: "Keyring Commands:"})
-	KredEnvCmd.AddCommand(getCmd)
 	KredEnvCmd.AddCommand(setCmd)
-	KredEnvCmd.AddCommand(deleteCmd)
+	KredEnvCmd.AddCommand(getCmd)
 	KredEnvCmd.AddCommand(listCmd)
+	KredEnvCmd.AddCommand(deleteCmd)
 	KredEnvCmd.AddCommand(exportCmd)
 	KredEnvCmd.AddCommand(importCmd)
 }
