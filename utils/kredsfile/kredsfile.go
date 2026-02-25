@@ -11,7 +11,7 @@ import (
 )
 
 var MinimalTemplate = `# .kredsfile
-# safe to commit — contains no secrets
+# safe to commit - contains no secrets
 # kredenv errors on missing 'needs', warns on missing 'maybe'
 
 # recurse to <depth>

@@ -21,7 +21,7 @@ const (
 )
 
 // Encrypt encrypts plaintext with a password using AES-256-GCM
-// output format: base64(salt + nonce + ciphertext)
+// Output as base64(salt + nonce + ciphertext)
 func Encrypt(data []byte, password string) (string, error) {
 	salt := make([]byte, saltSize)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {

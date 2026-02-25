@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/zalando/go-keyring"
@@ -16,14 +17,13 @@ const (
 )
 
 func addToIndex(key string) error {
-	// find a page with room
+	// loop through pages, find one with space, add key to it
 	pageIdx := 1
 	for {
 		pageKey := fmt.Sprintf("%s%d", indexPrefix, pageIdx)
 		value, err := keyring.Get(service, pageKey)
 		if err != nil {
-			if errors.Is(err, keyring.ErrNotFound) {
-				// empty page, start fresh
+			if errors.Is(err, keyring.ErrNotFound) { // likely no page yet, start fresh
 				data, _ := json.Marshal([]string{key})
 				return keyring.Set(service, pageKey, string(data))
 			}
@@ -36,10 +36,8 @@ func addToIndex(key string) error {
 		}
 
 		// check if key already exists
-		for _, k := range keys {
-			if k == key {
-				return nil
-			}
+		if slices.Contains(keys, key) {
+			return nil
 		}
 
 		// check if there's room on this page

@@ -22,7 +22,7 @@ func (l level) log(msg string) {
 func (l level) group(title string, msgs []string) {
 	fmt.Fprintln(os.Stdout, l.color.Sprint(l.tag), title)
 	for _, msg := range msgs {
-		fmt.Fprintln(os.Stdout, "   ", dimmed.Sprint("•"), msg)
+		fmt.Fprintln(os.Stdout, " ", dimmed.Sprint("•"), msg)
 	}
 }
 
