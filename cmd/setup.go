@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/keyring"
 	"github.com/patppuccin/kredenv/utils/kredsfile"
@@ -13,6 +14,10 @@ import (
 )
 
 const helpSetupCmd = "Finds missing env vars and prompts to be stored in the keyring"
+
+var (
+	flagSetupNamespace string
+)
 
 var setupCmd = &cobra.Command{
 	Use:           "setup",
@@ -23,6 +28,11 @@ var setupCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
+		if !isatty.IsTerminal(os.Stdin.Fd()) {
+			console.Error("setup requires a terminal to prompt for values")
+			os.Exit(1)
+		}
+
 		path, err := kredsfile.Locate()
 		if err != nil {
 			console.Error(err.Error())
@@ -47,7 +57,26 @@ var setupCmd = &cobra.Command{
 
 		reader := bufio.NewReader(os.Stdin)
 
+		ns := flagSetupNamespace
+		if ns == "" {
+			ns = kf.AutoloadNamespace
+		}
+		nsLabel := ""
+		if ns != "" {
+			nsLabel = " (namespace: " + ns + ")"
+		}
+
 		for _, secret := range kf.Secrets {
+			if ns != "" {
+				if !strings.HasPrefix(secret.Key, ns+":") {
+					continue
+				}
+			} else {
+				if strings.Contains(secret.Key, ":") {
+					continue
+				}
+			}
+
 			if keyring.Exists(secret.Key) {
 				alreadySet = append(alreadySet, secret.Key)
 				continue
@@ -74,19 +103,27 @@ var setupCmd = &cobra.Command{
 			stored = append(stored, secret.Key)
 		}
 
-		if len(alreadySet) == len(kf.Secrets) {
-			console.Success("All secrets already set in keyring")
+		if len(stored) == 0 && len(skipped) == 0 {
+			console.Success("All secrets already set in keyring" + nsLabel)
 			return
 		}
 
-		console.InfoGroup("Setup complete", []string{
-			"Stored:      " + strings.Join(stored, ", "),
-			"Skipped:     " + strings.Join(skipped, ", "),
-			"Already set: " + strings.Join(alreadySet, ", "),
+		joinOrNone := func(s []string) string {
+			if len(s) == 0 {
+				return "none"
+			}
+			return strings.Join(s, ", ")
+		}
+
+		console.InfoGroup("Setup complete"+nsLabel, []string{
+			"Stored      :" + joinOrNone(stored),
+			"Skipped     :" + joinOrNone(skipped),
+			"Already set :" + joinOrNone(alreadySet),
 		})
 	},
 }
 
 func init() {
 	setupCmd.Flags().SortFlags = false
+	setupCmd.Flags().StringVarP(&flagSetupNamespace, "namespace", "n", "", "Setup keys only for a specific namespace")
 }

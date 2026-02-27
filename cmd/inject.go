@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/utils/console"
@@ -12,6 +13,10 @@ import (
 )
 
 const helpInjectCmd = "Emits export statements for the shell hook (internal use)"
+
+var (
+	flagInjectNamespace string
+)
 
 var injectCmd = &cobra.Command{
 	Use:           "inject",
@@ -36,7 +41,26 @@ var injectCmd = &cobra.Command{
 			return // silent exit, hook should not break the shell
 		}
 
+		if kf.AutoloadOff {
+			return // silent exit, hook should not break the shell
+		}
+
+		ns := kf.AutoloadNamespace
+		if flagInjectNamespace != "" {
+			ns = flagInjectNamespace
+		}
+
 		for _, secret := range kf.Secrets {
+			if ns != "" {
+				if !strings.HasPrefix(secret.Key, ns+":") {
+					continue
+				}
+			} else {
+				if strings.Contains(secret.Key, ":") {
+					continue
+				}
+			}
+
 			value, err := keyring.Get(secret.Key)
 			if err != nil {
 				continue
@@ -48,4 +72,5 @@ var injectCmd = &cobra.Command{
 
 func init() {
 	injectCmd.Flags().SortFlags = false
+	injectCmd.Flags().StringVar(&flagInjectNamespace, "namespace", "", "Inject keys from a specific namespace")
 }

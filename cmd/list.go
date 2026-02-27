@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/keyring"
@@ -15,27 +17,32 @@ const helpListCmd = "Lists keys from the local .kredsfile or the keyring"
 var (
 	flagListAll        bool
 	flagListShowValues bool
+	flagListNamespace  string
 )
 
 var listCmd = &cobra.Command{
 	Use:           "list",
 	Short:         helpListCmd,
 	Long:          console.Banner(helpListCmd),
-	Args:          cobra.NoArgs,
 	GroupID:       "keyring",
 	Aliases:       []string{"ls"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) > 0 {
+			console.Error("No arguments expected, got " + strconv.Itoa(len(args)))
+			os.Exit(1)
+		}
+
 		if flagListAll {
-			listFromKeyring()
+			listFromKeyring(flagListNamespace)
 		} else {
-			listFromKredsfile()
+			listFromKredsfile(flagListNamespace)
 		}
 	},
 }
 
-func listFromKredsfile() {
+func listFromKredsfile(ns string) {
 	path, err := kredsfile.Locate()
 	if err != nil {
 		console.Error(err.Error())
@@ -64,6 +71,16 @@ func listFromKredsfile() {
 	var lookupMisses []string
 
 	for _, secret := range kf.Secrets {
+		if ns != "" {
+			if !strings.HasPrefix(secret.Key, ns+":") {
+				continue
+			}
+		} else {
+			if strings.Contains(secret.Key, ":") {
+				continue
+			}
+		}
+
 		value, err := keyring.Get(secret.Key)
 		if err == nil {
 			if flagListShowValues {
@@ -84,7 +101,7 @@ func listFromKredsfile() {
 	}
 }
 
-func listFromKeyring() {
+func listFromKeyring(ns string) {
 	keys, err := keyring.List()
 	if err != nil {
 		console.Error(err.Error())
@@ -97,6 +114,12 @@ func listFromKeyring() {
 
 	msgs := make([]string, 0, len(keys))
 	for _, key := range keys {
+		if ns != "" {
+			if !strings.HasPrefix(key, ns+":") {
+				continue
+			}
+		}
+
 		if flagListShowValues {
 			value, err := keyring.Get(key)
 			if err != nil {
@@ -109,11 +132,17 @@ func listFromKeyring() {
 		}
 	}
 
+	if len(msgs) == 0 && ns != "" {
+		console.Warn("No keys found for namespace: " + ns)
+		return
+	}
+
 	console.InfoGroup("Keyring Keys", msgs)
 }
 
 func init() {
 	listCmd.Flags().SortFlags = false
-	listCmd.Flags().BoolVarP(&flagListAll, "all", "a", false, "List all keys in the keyring instead")
 	listCmd.Flags().BoolVar(&flagListShowValues, "show-values", false, "Show secret values (use with caution)")
+	listCmd.Flags().BoolVarP(&flagListAll, "all", "a", false, "List all keys in the keyring instead")
+	listCmd.Flags().StringVarP(&flagListNamespace, "namespace", "n", "", "Filter by namespace")
 }

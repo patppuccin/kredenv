@@ -3,10 +3,12 @@ module github.com/patppuccin/kredenv
 go 1.25.0
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/fatih/color v1.18.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/spf13/cobra v1.10.2
 	github.com/zalando/go-keyring v0.2.6
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.48.0
 )
 

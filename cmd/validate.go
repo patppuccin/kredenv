@@ -15,7 +15,6 @@ var validateCmd = &cobra.Command{
 	Use:           "validate [file]",
 	Short:         helpValidateCmd,
 	Long:          console.Banner(helpValidateCmd),
-	Args:          cobra.MaximumNArgs(1),
 	GroupID:       "env",
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -23,14 +22,22 @@ var validateCmd = &cobra.Command{
 		var kp string
 		var err error
 
-		if len(args) == 0 {
+		switch len(args) {
+		case 0:
 			kp, err = kredsfile.Locate()
 			if err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
 			}
-		} else {
+			if kp == "" {
+				console.Error("No .kredsfile found")
+				os.Exit(1)
+			}
+		case 1:
 			kp = args[0]
+		default:
+			console.Error("Expected at most one argument, got " + strconv.Itoa(len(args)))
+			os.Exit(1)
 		}
 
 		if _, err := os.Stat(kp); os.IsNotExist(err) {

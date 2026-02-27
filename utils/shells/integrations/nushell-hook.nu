@@ -3,13 +3,14 @@
 # Initialize by saving to your autoload directory:
 # kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
 
-# Unload secrets tracked in KREDENV_LOADED
+# Unload secrets tracked in KREDENV_LOADED_VARS
 def --env _kredenv_unload [] {
-    if ($env.KREDENV_LOADED? | is-not-empty) {
+     if ($env.KREDENV_LOADED_VARS? | is-not-empty) {
         for key in ($env.KREDENV_LOADED | split row ",") {
             hide-env --ignore-errors $key
         }
-        hide-env KREDENV_LOADED
+        hide-env --ignore-errors KREDENV_LOADED_VARS
+        hide-env --ignore-errors KREDENV_LOADED_COUNT
     }
 }
 
@@ -23,7 +24,8 @@ def --env _kredenv_load [secrets: list<string>] {
         $acc | insert $key $value
     }
     load-env $pairs
-    $env.KREDENV_LOADED = ($pairs | columns | str join ",")
+    $env.KREDENV_LOADED_VARS = ($pairs | columns | str join ",")
+    $env.KREDENV_LOADED_COUNT = ($pairs | columns | length | into string)
 }
 
 # Initialize PWD hook — idempotent, safe to source multiple times
@@ -61,12 +63,28 @@ def --env --wrapped kredenv [...args: string] {
         return
     }
 
+    if ("--help" in $args) or ("-h" in $args) {
+        let args_str = ($args | str join " ")
+        nu -c $"($env.__KREDENV_BIN) ($args_str)"
+        return
+    }
+
     match ($args | first) {
         "load" => {
             _kredenv_unload
-            let secrets = (nu -c $"($env.__KREDENV_BIN) inject" | lines)
+            let ns_flag = if ("--namespace" in $args) {
+                let idx = ($args | index-of "--namespace")
+                $" --namespace ($args | get ($idx + 1))"
+            } else if ("-n" in $args) {
+                let idx = ($args | index-of "-n")
+                $" --namespace ($args | get ($idx + 1))"
+            } else {
+                ""
+            }
+            let secrets = (nu -c $"($env.__KREDENV_BIN) inject($ns_flag)" | lines)
             if ($secrets | is-not-empty) { _kredenv_load $secrets }
-            nu -c $"($env.__KREDENV_BIN) load"
+            let args_str = ($args | str join " ")
+            nu -c $"($env.__KREDENV_BIN) ($args_str)"
         }
         "unload" => {
             _kredenv_unload

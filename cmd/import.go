@@ -1,196 +1,321 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/crypto"
 	"github.com/patppuccin/kredenv/utils/keyring"
+	"github.com/patppuccin/kredenv/utils/kredsfile"
 	"github.com/spf13/cobra"
+	"go.yaml.in/yaml/v3"
 )
 
 const helpImportCmd = "Imports secrets from a file into the keyring"
 
 var (
-	flagImportOverwrite bool
+	flagImportOverwrite   bool
+	flagImportNoKredsfile bool
+	flagImportNamespaces  []string
 )
 
 var importCmd = &cobra.Command{
 	Use:           "import <file>",
 	Short:         helpImportCmd,
 	Long:          console.Banner(helpImportCmd),
-	Args:          cobra.ExactArgs(1),
 	GroupID:       "keyring",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) != 1 {
+			console.Error("Expected exactly one argument: path to the file to import")
+			os.Exit(1)
+		}
+
 		filePath := args[0]
 
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			console.Error("could not read file: " + err.Error())
+			console.Error("Could not read file: " + err.Error())
 			os.Exit(1)
 		}
 
-		// decrypt if needed
-		content := string(data)
-		if isEncrypted(content) {
-			fmt.Print("enter decryption password: ")
-			var password string
-			fmt.Scan(&password)
-			fmt.Println()
+		ext := strings.ToLower(filepath.Ext(filePath))
+		base := filepath.Base(filePath)
 
-			plaintext, err := crypto.Decrypt(content, password)
-			if err != nil {
-				console.Error(err.Error())
+		// validate supported format
+		isEnvFile := strings.Contains(base, ".env")
+		isStructured := slices.Contains([]string{".json", ".yaml", ".yml", ".toml"}, ext)
+		if !isEnvFile && !isStructured {
+			console.ErrorGroup(
+				"Files with extension "+ext+" are not supported",
+				[]string{"Supported formats: .env, .env.<namespace>, .json, .yaml, .yml, .toml"},
+			)
+			os.Exit(1)
+		}
+
+		// -n on env files assigns namespace, not filters
+		if isEnvFile && len(flagImportNamespaces) > 1 {
+			console.Error("Only one namespace can be assigned to an env file")
+			os.Exit(1)
+		}
+
+		var grouped map[string]map[string]string
+
+		switch ext {
+		case ".json":
+			if err := json.Unmarshal(data, &grouped); err != nil {
+				console.Error("Could not parse the JSON document: " + err.Error())
 				os.Exit(1)
 			}
-			content = string(plaintext)
+		case ".yaml", ".yml":
+			if err := yaml.Unmarshal(data, &grouped); err != nil {
+				console.Error("Could not parse the YAML document: " + err.Error())
+				os.Exit(1)
+			}
+		case ".toml":
+			if _, err := toml.Decode(string(data), &grouped); err != nil {
+				console.Error("Could not parse the TOML document: " + err.Error())
+				os.Exit(1)
+			}
+		default:
+			// For env files, parse into a flat map & consolidate into one group as per namespace
+			var envParseErr []string
+			flat := map[string]string{}
+			for i, line := range strings.Split(string(data), "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) != 2 {
+					envParseErr = append(envParseErr, fmt.Sprintf("line %d: invalid env line: %q", i+1, line))
+					continue
+				}
+				flat[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+			}
+
+			if len(envParseErr) > 0 {
+				console.ErrorGroup("Could not parse env file", envParseErr)
+				os.Exit(1)
+			}
+
+			// Namespace determination: --namespace > filename > no namespace (default)
+			ns := ""
+			parts := strings.Split(base, ".")
+			if parts[0] == "" && len(parts) > 2 {
+				ns = sanitizeNamespace(strings.Join(parts[2:], "."))
+			}
+			if len(flagImportNamespaces) > 0 {
+				ns = flagImportNamespaces[0]
+			}
+
+			grouped = map[string]map[string]string{ns: flat}
 		}
 
-		// detect format and parse
-		secrets, err := parseImport(filePath, content)
-		if err != nil {
-			console.Error(err.Error())
-			os.Exit(1)
-		}
-
-		if len(secrets) == 0 {
-			console.Warn("no secrets found in file")
+		if len(grouped) == 0 {
+			console.Warn("No secrets found in file")
 			return
 		}
 
-		// store in keyring
-		imported := 0
-		skipped := 0
-		for key, value := range secrets {
-			if keyring.Exists(key) && !flagImportOverwrite {
-				console.Warn("skipping existing key: " + key)
-				skipped++
-				continue
-			}
-			if err := keyring.Set(key, value); err != nil {
-				console.Error("could not store key " + key + ": " + err.Error())
-				os.Exit(1)
-			}
-			imported++
+		// Prompt password once if encrypted values exist
+		password, err := getPasswordIfEncrypted(grouped)
+		if err != nil {
+			console.Error("Could not read password: " + err.Error())
+			os.Exit(1)
 		}
 
-		console.Info(fmt.Sprintf("imported %d keys, skipped %d", imported, skipped))
+		// Decrypt values if password was provided
+		if password != "" {
+			if err := decryptValues(grouped, password); err != nil {
+				console.Error(err.Error())
+				os.Exit(1)
+			}
+		}
+
+		// update or create .kredsfile unless --no-kredsfile
+		if !flagImportNoKredsfile {
+			if err := updateOrCreateKredsfile(grouped); err != nil {
+				console.Error("Could not update .kredsfile: " + err.Error())
+				os.Exit(1)
+			}
+		}
+
+		// store in keyring
+		imported, skipped, misses := storeInKeyring(grouped)
+
+		if len(misses) > 0 {
+			console.ErrorGroup("Failed to store some keys", misses)
+		}
+
+		console.InfoGroup("Import complete", []string{
+			"Imported " + fmt.Sprintf("%d", imported) + " keys",
+			"Skipped " + fmt.Sprintf("%d", skipped) + " keys",
+			"Failed to store " + fmt.Sprintf("%d", len(misses)) + " keys",
+		})
 	},
 }
 
-// isEncrypted checks if content looks like a base64 encrypted payload
-func isEncrypted(content string) bool {
-	content = strings.TrimSpace(content)
-	// base64 only contains these chars and no spaces or newlines mid-content
-	for _, c := range content {
-		if !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=", c) {
-			return false
+func getPasswordIfEncrypted(grouped map[string]map[string]string) (string, error) {
+	for _, secrets := range grouped {
+		for _, value := range secrets {
+			if strings.HasPrefix(value, "enc:") {
+				fmt.Print("Enter decryption password: ")
+				reader := bufio.NewReader(os.Stdin)
+				password, err := reader.ReadString('\n')
+				if err != nil {
+					return "", fmt.Errorf("could not read password")
+				}
+				password = strings.TrimSpace(password)
+				fmt.Println()
+				if password == "" {
+					return "", fmt.Errorf("password cannot be empty")
+				}
+				return password, nil
+			}
 		}
 	}
-	return true
+	return "", nil
 }
 
-// parseImport detects format from extension then content and parses accordingly
-func parseImport(filePath, content string) (map[string]string, error) {
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	switch ext {
-	case ".json":
-		return parseJSON(content)
-	case ".yaml", ".yml":
-		return parseYAML(content)
-	case ".toml":
-		return parseTOML(content)
-	case ".env", "":
-		return parseENV(content)
-	default:
-		// sniff content
-		return sniffAndParse(content)
+func decryptValues(grouped map[string]map[string]string, password string) error {
+	for ns, secrets := range grouped {
+		for key, value := range secrets {
+			if strings.HasPrefix(value, "enc:") {
+				decrypted, err := crypto.Decrypt(value[4:], password)
+				if err != nil {
+					return fmt.Errorf("could not decrypt value for %s:%s: %w", ns, key, err)
+				}
+				grouped[ns][key] = string(decrypted)
+			}
+		}
 	}
+	return nil
 }
 
-// sniffAndParse attempts to detect format from content
-func sniffAndParse(content string) (map[string]string, error) {
-	content = strings.TrimSpace(content)
+func storeInKeyring(grouped map[string]map[string]string) (imported, skipped int, misses []string) {
+	for ns, secrets := range grouped {
+		for key, value := range secrets {
+			var ringKey string
+			if ns == "" || ns == "_default" {
+				ringKey = key
+			} else {
+				ringKey = ns + ":" + key
+			}
 
-	if strings.HasPrefix(content, "{") {
-		return parseJSON(content)
+			if keyring.Exists(ringKey) && !flagImportOverwrite {
+				skipped++
+				continue
+			}
+
+			if err := keyring.Set(ringKey, value); err != nil {
+				misses = append(misses, fmt.Sprintf("Cannot store key '%s': %s", ringKey, err.Error()))
+				continue
+			}
+			imported++
+		}
 	}
-	if strings.Contains(content, " = ") {
-		return parseTOML(content)
-	}
-	if strings.Contains(content, ": ") {
-		return parseYAML(content)
-	}
-	// fallback to env
-	return parseENV(content)
+	return
 }
 
-func parseJSON(content string) (map[string]string, error) {
-	var secrets map[string]string
-	if err := json.Unmarshal([]byte(content), &secrets); err != nil {
-		return nil, fmt.Errorf("could not parse JSON: %w", err)
+func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
+	newFile := false
+	path, err := kredsfile.Locate()
+	if err != nil || path == "" {
+		newFile = true
+		path = filepath.Join(".", ".kredsfile")
 	}
-	return secrets, nil
-}
 
-func parseENV(content string) (map[string]string, error) {
-	secrets := map[string]string{}
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	var existing []kredsfile.Secret
+	if _, err := os.Stat(path); err == nil {
+		kf, errs := kredsfile.Parse(path)
+		if len(errs) > 0 {
+			errMsgs := make([]string, len(errs))
+			for i, e := range errs {
+				errMsgs[i] = e.Error()
+			}
+			return fmt.Errorf("could not parse existing .kredsfile: %s", strings.Join(errMsgs, ", "))
 		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid env line: %q", line)
-		}
-		secrets[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		existing = kf.Secrets
 	}
-	return secrets, nil
-}
 
-func parseYAML(content string) (map[string]string, error) {
-	secrets := map[string]string{}
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, ": ", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid yaml line: %q", line)
-		}
-		value := strings.Trim(strings.TrimSpace(parts[1]), `"`)
-		secrets[strings.TrimSpace(parts[0])] = value
+	existingKeys := map[string]bool{}
+	for _, s := range existing {
+		existingKeys[s.Key] = true
 	}
-	return secrets, nil
-}
 
-func parseTOML(content string) (map[string]string, error) {
-	secrets := map[string]string{}
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, " = ", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid toml line: %q", line)
-		}
-		value := strings.Trim(strings.TrimSpace(parts[1]), `"`)
-		secrets[strings.TrimSpace(parts[0])] = value
+	// build new needs directives to append
+	var lines []string
+
+	if newFile {
+		lines = append(lines, "# File created by kredenv")
+		lines = append(lines, "# recurse to 0 # uncomment this to recurse secrets")
+		lines = append(lines, "")
+		lines = append(lines, "# autoload # uncomment this to autoload secrets (accepts 'on', 'off', or 'for <namespace>')")
 	}
-	return secrets, nil
+
+	for ns, secrets := range grouped {
+		for key := range secrets {
+			var ringKey string
+			if ns == "" || ns == "_default" {
+				ringKey = key
+			} else {
+				ringKey = ns + ":" + key
+			}
+
+			if existingKeys[ringKey] && !flagImportOverwrite {
+				continue
+			}
+
+			if ns == "" || ns == "_default" {
+				lines = append(lines, "needs "+key)
+			} else {
+				lines = append(lines, fmt.Sprintf("needs %s as %s", ringKey, key))
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open .kredsfile: %w", err)
+	}
+	defer f.Close()
+
+	// Add empty line as separator if file already has content
+	if len(existing) > 0 {
+		if _, err := fmt.Fprintln(f); err != nil {
+			return err
+		}
+	}
+
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(f, line); err != nil {
+			return err
+		}
+	}
+
+	if newFile {
+		console.Success("Created .kredsfile at " + path)
+	} else {
+		console.Success("Updated .kredsfile at " + path)
+	}
+	return nil
 }
 
 func init() {
 	importCmd.Flags().SortFlags = false
 	importCmd.Flags().BoolVar(&flagImportOverwrite, "overwrite", false, "Overwrite existing keys if they already exist in the keyring")
+	importCmd.Flags().BoolVar(&flagImportNoKredsfile, "no-kredsfile", false, "Skip updating or creating a .kredsfile")
+	importCmd.Flags().StringArrayVarP(&flagImportNamespaces, "namespaces", "n", []string{}, "Import one or more specific namespaces from the file")
 }

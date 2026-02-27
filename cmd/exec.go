@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/keyring"
@@ -13,14 +14,25 @@ import (
 
 const helpExecCmd = "Executes a command with secrets injected into its environment"
 
+var execExamples = `  # Execute a command with secrets from the default namespace
+  kredenv exec -- node server.js
+
+  # Execute a command with secrets from a specific namespace
+  kredenv exec -n staging -- terraform apply --auto-approve
+  kredenv exec -n production -- kubectl apply -f deploy.yaml`
+
+var (
+	flagExecNamespace string
+)
+
 var execCmd = &cobra.Command{
-	Use:                "exec <command> [args...]",
-	Short:              helpExecCmd,
-	Long:               console.Banner(helpExecCmd),
-	GroupID:            "env",
-	SilenceUsage:       true,
-	SilenceErrors:      true,
-	DisableFlagParsing: true,
+	Use:           "exec -- <command> [args...]",
+	Short:         helpExecCmd,
+	Long:          console.Banner(helpExecCmd),
+	GroupID:       "env",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Example:       execExamples,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			console.Error("No command provided to execute")
@@ -28,8 +40,8 @@ var execCmd = &cobra.Command{
 		}
 
 		path, err := kredsfile.Locate()
-		if err != nil {
-			console.Error(err.Error())
+		if err != nil || path == "" {
+			console.Error("No .kredsfile found")
 			os.Exit(1)
 		}
 
@@ -43,10 +55,25 @@ var execCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		ns := flagExecNamespace
+		if ns == "" {
+			ns = kf.AutoloadNamespace
+		}
+
 		resolved := map[string]string{}
 		var missingRequired []string
 
 		for _, secret := range kf.Secrets {
+			if ns != "" {
+				if !strings.HasPrefix(secret.Key, ns+":") {
+					continue
+				}
+			} else {
+				if strings.Contains(secret.Key, ":") {
+					continue
+				}
+			}
+
 			value, err := keyring.Get(secret.Key)
 			if err != nil {
 				if !secret.Optional {
@@ -87,4 +114,5 @@ func runWith(args []string, secrets map[string]string) {
 
 func init() {
 	execCmd.Flags().SortFlags = false
+	execCmd.Flags().StringVarP(&flagExecNamespace, "namespace", "n", "", "Execute command with secrets from a specific namespace")
 }

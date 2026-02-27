@@ -34,8 +34,8 @@ var hookCmd = &cobra.Command{
 
 		sh, ok := shells.Get(args[0])
 		if !ok {
-			console.Error("Unsupported shell: " + args[0])
-			console.Info("Supported: " + shells.Names())
+			console.Error("The shell '" + args[0] + "' is not supported")
+			console.Info("Supported shells are " + shells.Names())
 			os.Exit(1)
 		}
 		fmt.Println(sh.Hook)

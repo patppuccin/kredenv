@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpUnloadCmd = "Unloads the .kredsfile from the environment"
+const helpUnloadCmd = "Unloads the " + consts.AppName + " secrets from the environment"
 
 var unloadCmd = &cobra.Command{
 	Use:           "unload",
@@ -24,11 +24,11 @@ var unloadCmd = &cobra.Command{
 			return
 		}
 
-		loaded := os.Getenv("KREDENV_LOADED")
-		if loaded != "" {
-			console.Warn("Secrets still loaded: " + loaded)
-			return
+		if os.Getenv("KREDENV_LOADED_VARS") != "" {
+			console.Error("Unload failed, secrets still present in session")
+			os.Exit(1)
 		}
+
 		console.Success("Secrets unloaded from session")
 	},
 }
