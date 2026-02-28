@@ -16,12 +16,18 @@ Each developer manages their own keyring. There is no shared secrets file, no `.
 
 ## Installation
 
-**Via `go install`:**
+**Via convenience script (recommended):**
 
-This is the easiest way to install kredenv.
+_Linux & macOS:_
 
-```sh
-go install github.com/patppuccin/kredenv@latest
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.sh)
+```
+
+_Windows (PowerShell 5.1+):_
+
+```powershell
+powershell -ExecutionPolicy Bypass -NoProfile -c "irm https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.ps1 | iex"
 ```
 
 **Via prebuilt binary:**
@@ -52,8 +58,6 @@ echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish
 
 **Nushell:**
 
-For Nushell, saving the hook to your autoload directory is recommended.
-
 ```sh
 kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
 ```
@@ -74,18 +78,23 @@ Place a `.kredsfile` in your project root. kredenv walks up the directory tree t
 # kredenv errors on missing 'needs', warns on missing 'maybe'
 
 # levels to recurse when looking for .kredsfile
-resurse to 3
+recurse to 3
+
+# autoload controls what gets injected on cd
+autoload on            # load flat keys (default)
+autoload off           # disable autoloading
+autoload for staging   # load only staging namespace keys
 
 # mandatory secrets
-needs AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
-needs AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
-
-# namespaced secrets
-needs aws:john-doe-profile:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
-needs aws:john-doe-profile:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
+needs AWS_ACCESS_KEY_ID
+needs AWS_SECRET_ACCESS_KEY
 
 # optional secrets
-maybe ANALYTICS_ID as ANALYTICS_ID
+maybe ANALYTICS_ID
+
+# namespaced secrets (must have an alias)
+needs staging:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs staging:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
 ```
 
 To initialize a `.kredsfile` in the current directory:
@@ -98,16 +107,39 @@ To store secrets in the keyring:
 
 ```sh
 kredenv set AWS_ACCESS_KEY_ID
-kredenv set AWS_SECRET_ACCESS_KEY
+kredenv set AWS_SECRET_ACCESS_KEY my-super-secret-aws-secret-access-key
 ```
-
-It will prompt for the secret value.
 
 To validate your `.kredsfile`:
 
 ```sh
 kredenv validate
 ```
+
+## Namespaces
+
+Namespaces let you manage secrets for multiple environments in the same keyring without collision.
+
+```sh
+# store secrets under a namespace
+kredenv set AWS_ACCESS_KEY_ID -n staging
+kredenv set AWS_ACCESS_KEY_ID -n production
+
+# load a specific namespace
+kredenv load -n staging
+
+# run a command with a specific namespace
+kredenv exec -n production -- terraform apply
+```
+
+In the `.kredsfile`, namespaced keys must declare an alias:
+
+```txt
+needs staging:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs production:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+```
+
+The `autoload for <namespace>` directive controls which namespace gets loaded automatically on `cd`.
 
 ## Usage
 
@@ -140,13 +172,56 @@ kredenv validate
 | `kredenv export`        | Export secrets to stdout or a file          |
 | `kredenv import <file>` | Import secrets from a file into the keyring |
 
+## Export & Import
+
+kredenv can export secrets to a file for backup or migration and re-import them on another machine. By default, it prints to stdout, but by using the `-o` flag, you can export to a file. YAML, JSON, and TOML formats along with the standard env format are supported.
+
+```sh
+# export to stdout (env format, default)
+kredenv export
+
+# export to a file
+kredenv export -o .env
+
+# export a specific namespace
+kredenv export -n staging
+
+# export multiple namespaces
+kredenv export -n staging -n production
+
+# export as json, yaml, or toml
+kredenv export -f yaml
+
+# export with value-level encryption
+kredenv export --encrypt
+```
+
+When exporting multiple namespaces, env files are written per namespace (`.env.staging`, `.env.production`). Structured formats (json, yaml, toml) write a single file with namespaces as top-level keys.
+
+Importing restores secrets to the keyring and updates or creates a `.kredsfile`:
+
+```sh
+# import from a file
+kredenv import .env
+
+# import only a specific namespace
+kredenv import creds.yaml -n staging
+
+# overwrite existing keys
+kredenv import .env --overwrite
+
+# import to keyring only, skip .kredsfile update
+kredenv import .env --no-kredsfile
+```
+
 ## Running a command with secrets
 
 To run a single command with secrets injected without loading them into your session:
 
 ```sh
-kredenv exec terraform apply
-kredenv exec npm run dev
+kredenv exec -- terraform apply
+kredenv exec -- npm run dev
+kredenv exec -n staging -- rails db:migrate
 ```
 
 ## Caveats
