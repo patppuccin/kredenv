@@ -3,13 +3,14 @@
 # Initialize by adding the following to ~/.config/fish/config.fish:
 # kredenv hook fish | source
 
-# Unload secrets tracked in KREDENV_LOADED
+# Unload secrets tracked in KREDENV_LOADED_VARS
 function __kredenv_unload
-    if set -q KREDENV_LOADED
-        for key in (string split ',' $KREDENV_LOADED)
+    if set -q KREDENV_LOADED_VARS
+        for key in (string split ',' $KREDENV_LOADED_VARS)
             set -e $key
         end
-        set -e KREDENV_LOADED
+        set -e KREDENV_LOADED_VARS
+        set -e KREDENV_LOADED_COUNT
     end
 end
 
@@ -24,29 +25,48 @@ function __kredenv_load
         set -gx $key $value
         set -a keys $key
     end
-    set -gx KREDENV_LOADED (string join ',' $keys)
+    set -gx KREDENV_LOADED_VARS (string join ',' $keys)
+    set -gx KREDENV_LOADED_COUNT (count $keys)
 end
 
 # Hook to detect directory change
 function __kredenv_hook --on-variable PWD
+    __kredenv_unload
     set -l secrets (command kredenv inject 2>/dev/null)
     if test -n "$secrets"
-        __kredenv_unload
         __kredenv_load $secrets
     end
 end
 
 # Public interceptor — shadows the kredenv binary
 function kredenv
+    # passthrough help flags
+    if contains -- --help $argv; or contains -- -h $argv
+        command kredenv $argv
+        return
+    end
+
     switch $argv[1]
         case load
             __kredenv_unload
-            set -l secrets (command kredenv inject 2>/dev/null)
+            set -l ns_flags
+            set -l i 2
+            while test $i -le (count $argv)
+                if test $argv[$i] = --namespace -o $argv[$i] = -n
+                    set next (math $i + 1)
+                    set ns_flags --namespace $argv[$next]
+                    break
+                end
+                set i (math $i + 1)
+            end
+            set -l secrets (command kredenv inject $ns_flags 2>/dev/null)
             if test -n "$secrets"
                 __kredenv_load $secrets
             end
+            command kredenv $argv
         case unload
             __kredenv_unload
+            command kredenv unload
         case inject
             echo "kredenv inject is for internal use only" >&2
             return 1
