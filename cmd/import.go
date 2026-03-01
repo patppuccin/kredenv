@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,15 +9,16 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/crypto"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/helpers"
+	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
 
-const helpImportCmd = "Imports secrets from a file into the keyring"
+const helpImportCmd = "Import secrets from a file into the kredenv store"
 
 var (
 	flagImportOverwrite   bool
@@ -30,7 +30,7 @@ var importCmd = &cobra.Command{
 	Use:           "import <file>",
 	Short:         helpImportCmd,
 	Long:          console.Banner(helpImportCmd),
-	GroupID:       "keyring",
+	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -50,7 +50,6 @@ var importCmd = &cobra.Command{
 		ext := strings.ToLower(filepath.Ext(filePath))
 		base := filepath.Base(filePath)
 
-		// validate supported format
 		isEnvFile := strings.Contains(base, ".env")
 		isStructured := slices.Contains([]string{".json", ".yaml", ".yml", ".toml"}, ext)
 		if !isEnvFile && !isStructured {
@@ -61,7 +60,6 @@ var importCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// -n on env files assigns namespace, not filters
 		if isEnvFile && len(flagImportNamespaces) > 1 {
 			console.Error("Only one namespace can be assigned to an env file")
 			os.Exit(1)
@@ -86,7 +84,6 @@ var importCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		default:
-			// For env files, parse into a flat map & consolidate into one group as per namespace
 			var envParseErr []string
 			flat := map[string]string{}
 			for i, line := range strings.Split(string(data), "\n") {
@@ -107,7 +104,6 @@ var importCmd = &cobra.Command{
 				os.Exit(1)
 			}
 
-			// Namespace determination: --namespace > filename > no namespace (default)
 			ns := ""
 			parts := strings.Split(base, ".")
 			if parts[0] == "" && len(parts) > 2 {
@@ -125,22 +121,34 @@ var importCmd = &cobra.Command{
 			return
 		}
 
-		// Prompt password once if encrypted values exist
-		password, err := getPasswordIfEncrypted(grouped)
+		// prompt for decryption password if encrypted values exist
+		decryptPassword, err := getDecryptionPassword(grouped)
 		if err != nil {
 			console.Error("Could not read password: " + err.Error())
 			os.Exit(1)
 		}
 
-		// Decrypt values if password was provided
-		if password != "" {
-			if err := decryptValues(grouped, password); err != nil {
+		if decryptPassword != "" {
+			if err := decryptValues(grouped, decryptPassword); err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
 			}
 		}
 
-		// update or create .kredsfile unless --no-kredsfile
+		// open store
+		password, err := auth.Retrieve()
+		if err != nil {
+			console.Error(err.Error())
+			os.Exit(1)
+		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			console.Error("Could not open store")
+			os.Exit(1)
+		}
+		defer s.Close()
+
 		if !flagImportNoKredsfile {
 			if err := updateOrCreateKredsfile(grouped); err != nil {
 				console.Error("Could not update .kredsfile: " + err.Error())
@@ -148,8 +156,7 @@ var importCmd = &cobra.Command{
 			}
 		}
 
-		// store in keyring
-		imported, skipped, misses := storeInKeyring(grouped)
+		imported, skipped, misses := storeInStore(s, grouped)
 
 		if len(misses) > 0 {
 			console.ErrorGroup("Failed to store some keys", misses)
@@ -163,22 +170,18 @@ var importCmd = &cobra.Command{
 	},
 }
 
-func getPasswordIfEncrypted(grouped map[string]map[string]string) (string, error) {
+func getDecryptionPassword(grouped map[string]map[string]string) (string, error) {
 	for _, secrets := range grouped {
 		for _, value := range secrets {
 			if strings.HasPrefix(value, "enc:") {
-				fmt.Print("Enter decryption password: ")
-				reader := bufio.NewReader(os.Stdin)
-				password, err := reader.ReadString('\n')
+				pwd, err := console.PromptSecret("Enter decryption password: ")
 				if err != nil {
 					return "", fmt.Errorf("could not read password")
 				}
-				password = strings.TrimSpace(password)
-				fmt.Println()
-				if password == "" {
+				if pwd == "" {
 					return "", fmt.Errorf("password cannot be empty")
 				}
-				return password, nil
+				return pwd, nil
 			}
 		}
 	}
@@ -189,7 +192,7 @@ func decryptValues(grouped map[string]map[string]string, password string) error 
 	for ns, secrets := range grouped {
 		for key, value := range secrets {
 			if strings.HasPrefix(value, "enc:") {
-				decrypted, err := crypto.Decrypt(value[4:], password)
+				decrypted, err := helpers.Decrypt(value[4:], password)
 				if err != nil {
 					return fmt.Errorf("could not decrypt value for %s:%s: %w", ns, key, err)
 				}
@@ -200,23 +203,24 @@ func decryptValues(grouped map[string]map[string]string, password string) error 
 	return nil
 }
 
-func storeInKeyring(grouped map[string]map[string]string) (imported, skipped int, misses []string) {
+func storeInStore(s *store.Store, grouped map[string]map[string]string) (imported, skipped int, misses []string) {
 	for ns, secrets := range grouped {
 		for key, value := range secrets {
-			var ringKey string
+			var storeKey string
 			if ns == "" || ns == "_default" {
-				ringKey = key
+				storeKey = key
 			} else {
-				ringKey = ns + ":" + key
+				storeKey = ns + ":" + key
 			}
 
-			if keyring.Exists(ringKey) && !flagImportOverwrite {
+			// check if key exists
+			if _, err := s.Get(storeKey); err == nil && !flagImportOverwrite {
 				skipped++
 				continue
 			}
 
-			if err := keyring.Set(ringKey, value); err != nil {
-				misses = append(misses, fmt.Sprintf("Cannot store key '%s': %s", ringKey, err.Error()))
+			if err := s.Set(storeKey, value); err != nil {
+				misses = append(misses, fmt.Sprintf("Cannot store key '%s': %s", storeKey, err.Error()))
 				continue
 			}
 			imported++
@@ -227,15 +231,15 @@ func storeInKeyring(grouped map[string]map[string]string) (imported, skipped int
 
 func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	newFile := false
-	path, err := kredsfile.Locate()
+	path, err := spec.Locate()
 	if err != nil || path == "" {
 		newFile = true
 		path = filepath.Join(".", ".kredsfile")
 	}
 
-	var existing []kredsfile.Secret
+	var existing []spec.Secret
 	if _, err := os.Stat(path); err == nil {
-		kf, errs := kredsfile.Parse(path)
+		kf, errs := spec.Parse(path)
 		if len(errs) > 0 {
 			errMsgs := make([]string, len(errs))
 			for i, e := range errs {
@@ -251,7 +255,6 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 		existingKeys[s.Key] = true
 	}
 
-	// build new needs directives to append
 	var lines []string
 
 	if newFile {
@@ -263,21 +266,21 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 
 	for ns, secrets := range grouped {
 		for key := range secrets {
-			var ringKey string
+			var storeKey string
 			if ns == "" || ns == "_default" {
-				ringKey = key
+				storeKey = key
 			} else {
-				ringKey = ns + ":" + key
+				storeKey = ns + ":" + key
 			}
 
-			if existingKeys[ringKey] && !flagImportOverwrite {
+			if existingKeys[storeKey] && !flagImportOverwrite {
 				continue
 			}
 
 			if ns == "" || ns == "_default" {
 				lines = append(lines, "needs "+key)
 			} else {
-				lines = append(lines, fmt.Sprintf("needs %s as %s", ringKey, key))
+				lines = append(lines, fmt.Sprintf("needs %s as %s", storeKey, key))
 			}
 		}
 	}
@@ -292,7 +295,6 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	}
 	defer f.Close()
 
-	// Add empty line as separator if file already has content
 	if len(existing) > 0 {
 		if _, err := fmt.Fprintln(f); err != nil {
 			return err
@@ -315,7 +317,7 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 
 func init() {
 	importCmd.Flags().SortFlags = false
-	importCmd.Flags().BoolVar(&flagImportOverwrite, "overwrite", false, "Overwrite existing keys if they already exist in the keyring")
+	importCmd.Flags().BoolVar(&flagImportOverwrite, "overwrite", false, "Overwrite existing keys if they already exist in the store")
 	importCmd.Flags().BoolVar(&flagImportNoKredsfile, "no-kredsfile", false, "Skip updating or creating a .kredsfile")
 	importCmd.Flags().StringArrayVarP(&flagImportNamespaces, "namespaces", "n", []string{}, "Import one or more specific namespaces from the file")
 }

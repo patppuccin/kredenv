@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/mattn/go-isatty"
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 )
 
@@ -31,19 +32,30 @@ var injectCmd = &cobra.Command{
 			return
 		}
 
-		path, err := kredsfile.Locate()
+		path, err := spec.Locate()
 		if err != nil || path == "" {
-			return // silent exit, hook should not break the shell
+			return
 		}
 
-		kf, errs := kredsfile.Parse(path)
+		kf, errs := spec.Parse(path)
 		if len(errs) > 0 {
-			return // silent exit, hook should not break the shell
+			return
 		}
 
 		if kf.AutoloadOff {
-			return // silent exit, hook should not break the shell
+			return
 		}
+
+		password, err := auth.Retrieve()
+		if err != nil {
+			return // silent exit — don't break the shell if no master password
+		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			return
+		}
+		defer s.Close()
 
 		ns := kf.AutoloadNamespace
 		if flagInjectNamespace != "" {
@@ -61,7 +73,7 @@ var injectCmd = &cobra.Command{
 				}
 			}
 
-			value, err := keyring.Get(secret.Key)
+			value, err := s.Get(secret.Key)
 			if err != nil {
 				continue
 			}

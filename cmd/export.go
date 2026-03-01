@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,15 +9,16 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/crypto"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/helpers"
+	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
 
-const helpExportCmd = "Exports secrets from the keyring to stdout or a file"
+const helpExportCmd = "Export secrets from the secrets store to stdout or a file"
 
 var supportedExportFormats = []string{"env", "json", "yaml", "toml"}
 
@@ -34,7 +34,7 @@ var exportCmd = &cobra.Command{
 	Use:           "export",
 	Short:         helpExportCmd,
 	Long:          console.Banner(helpExportCmd),
-	GroupID:       "keyring",
+	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -51,7 +51,20 @@ var exportCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		groupedSecrets, errs := collectGroupedSecrets()
+		password, err := auth.Retrieve()
+		if err != nil {
+			console.Error(err.Error())
+			os.Exit(1)
+		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			console.Error("Could not open store")
+			os.Exit(1)
+		}
+		defer s.Close()
+
+		groupedSecrets, errs := collectGroupedSecrets(s)
 		if len(errs) > 0 {
 			errMsgs := make([]string, len(errs))
 			for i, err := range errs {
@@ -66,7 +79,7 @@ var exportCmd = &cobra.Command{
 			return
 		}
 
-		// Filter only the required namespaces (if specified)
+		// Filter only the required namespaces if specified
 		if len(flagExportNamespaces) > 0 {
 			nsSet := map[string]bool{}
 			for _, ns := range flagExportNamespaces {
@@ -83,24 +96,27 @@ var exportCmd = &cobra.Command{
 			}
 		}
 
-		// Prompt password once if encrypting
-		var password string
+		// Prompt for encryption password if encrypting
+		var encPassword string
 		if flagExportEncrypt {
-			var err error
-			password, err = promptPassword()
+			encPassword, err = console.PromptSecret("Enter encryption password: ")
 			if err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
 			}
+			if encPassword == "" {
+				console.Error("Encryption password cannot be empty")
+				os.Exit(1)
+			}
 		}
 
-		console.Warn("Export contains secrets - do not commit to version control")
+		console.Warn("Export contains secrets — do not commit to version control")
 
 		switch flagExportFormat {
 		case "env":
-			exportEnv(groupedSecrets, password)
+			exportEnv(groupedSecrets, encPassword)
 		default:
-			exportStructured(groupedSecrets, password)
+			exportStructured(groupedSecrets, encPassword)
 		}
 	},
 }
@@ -110,7 +126,7 @@ func exportEnv(grouped map[string]map[string]string, password string) {
 		var sb strings.Builder
 		for k, v := range secrets {
 			if password != "" {
-				encrypted, err := crypto.Encrypt([]byte(v), password)
+				encrypted, err := helpers.Encrypt([]byte(v), password)
 				if err != nil {
 					console.Error("Could not encrypt value for " + k)
 					os.Exit(1)
@@ -151,12 +167,11 @@ func exportEnv(grouped map[string]map[string]string, password string) {
 	}
 }
 
-// Writes a single file with namespaces as top-level keys
 func exportStructured(grouped map[string]map[string]string, password string) {
 	if password != "" {
 		for ns, secrets := range grouped {
 			for k, v := range secrets {
-				encrypted, err := crypto.Encrypt([]byte(v), password)
+				encrypted, err := helpers.Encrypt([]byte(v), password)
 				if err != nil {
 					console.Error("Could not encrypt value for " + k)
 					os.Exit(1)
@@ -169,13 +184,12 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 	if secrets, ok := grouped[""]; ok {
 		if _, conflict := grouped["_default"]; conflict {
 			console.ErrorGroup(
-				"Unable to export namespace '_default",
+				"Unable to export namespace '_default'",
 				[]string{
 					"The namespace '_default' conflicts with flat keys",
 					"Rename your namespace to prevent namespace collisions",
 				},
 			)
-			console.Error("Cannot export: namespace 'default' as it conflicts with flat keys")
 			os.Exit(1)
 		}
 		grouped["_default"] = secrets
@@ -225,13 +239,11 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 		os.Exit(1)
 	}
 
-	// If it is a directory, write to dir-path/creds.<format> file
 	if isDir := (err == nil && info.IsDir()) || (os.IsNotExist(err) && filepath.Ext(absOutputPath) == ""); isDir {
 		writeFile(filepath.Join(absOutputPath, "creds."+flagExportFormat), output)
 		return
 	}
 
-	// If it is a file, error if the extension does not match the format
 	ext := strings.TrimPrefix(filepath.Ext(absOutputPath), ".")
 	if ext != flagExportFormat {
 		console.Error("File extension ." + ext + " does not match format " + flagExportFormat)
@@ -241,20 +253,16 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 	writeFile(absOutputPath, output)
 }
 
-func collectGroupedSecrets() (map[string]map[string]string, []error) {
+func collectGroupedSecrets(s *store.Store) (map[string]map[string]string, []error) {
 	grouped := map[string]map[string]string{}
 
 	if flagExportAll {
-		keys, err := keyring.List()
+		data, err := s.List()
 		if err != nil {
 			return nil, []error{err}
 		}
-		for _, key := range keys {
-			value, err := keyring.Get(key)
-			if err != nil {
-				continue
-			}
-			ns, keyName := kredsfile.SplitNamespacedKey(key)
+		for key, value := range data {
+			ns, keyName := spec.SplitNamespacedKey(key)
 			if _, ok := grouped[ns]; !ok {
 				grouped[ns] = map[string]string{}
 			}
@@ -263,7 +271,7 @@ func collectGroupedSecrets() (map[string]map[string]string, []error) {
 		return grouped, nil
 	}
 
-	path, err := kredsfile.Locate()
+	path, err := spec.Locate()
 	if err != nil {
 		return nil, []error{err}
 	}
@@ -271,21 +279,21 @@ func collectGroupedSecrets() (map[string]map[string]string, []error) {
 		return nil, []error{fmt.Errorf("no .kredsfile found")}
 	}
 
-	kf, errs := kredsfile.Parse(path)
+	kf, errs := spec.Parse(path)
 	if len(errs) > 0 {
 		return nil, errs
 	}
 
 	var collectErrs []error
 	for _, secret := range kf.Secrets {
-		value, err := keyring.Get(secret.Key)
+		value, err := s.Get(secret.Key)
 		if err != nil {
 			if !secret.Optional {
 				collectErrs = append(collectErrs, fmt.Errorf("missing required key: %s", secret.Key))
 			}
 			continue
 		}
-		ns, _ := kredsfile.SplitNamespacedKey(secret.Key)
+		ns, _ := spec.SplitNamespacedKey(secret.Key)
 		if _, ok := grouped[ns]; !ok {
 			grouped[ns] = map[string]string{}
 		}
@@ -297,21 +305,6 @@ func collectGroupedSecrets() (map[string]map[string]string, []error) {
 	}
 
 	return grouped, nil
-}
-
-func promptPassword() (string, error) {
-	fmt.Print("Enter encryption password: ")
-	reader := bufio.NewReader(os.Stdin)
-	password, err := reader.ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("could not read password")
-	}
-	password = strings.TrimSpace(password)
-	fmt.Println()
-	if password == "" {
-		return "", fmt.Errorf("password cannot be empty")
-	}
-	return password, nil
 }
 
 func sanitizeNamespace(ns string) string {
@@ -349,9 +342,9 @@ func writeFile(path, content string) {
 
 func init() {
 	exportCmd.Flags().SortFlags = false
-	exportCmd.Flags().BoolVar(&flagExportAll, "all", false, "Export all keys in the keyring")
+	exportCmd.Flags().BoolVar(&flagExportAll, "all", false, "Export all secrets in the store")
 	exportCmd.Flags().BoolVar(&flagExportEncrypt, "encrypt", false, "Encrypt secret values with a password")
 	exportCmd.Flags().StringVarP(&flagExportFormat, "format", "f", "env", "Export format (env, json, yaml, toml)")
 	exportCmd.Flags().StringVarP(&flagExportOutput, "output", "o", "", "Output file path (defaults to stdout)")
-	exportCmd.Flags().StringArrayVarP(&flagExportNamespaces, "namespaces", "n", []string{}, "Export keys from specific namespaces (repeatable)")
+	exportCmd.Flags().StringArrayVarP(&flagExportNamespaces, "namespaces", "n", []string{}, "Export secrets from specific namespaces (repeatable)")
 }

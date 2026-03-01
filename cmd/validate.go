@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/spec"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +24,7 @@ var validateCmd = &cobra.Command{
 
 		switch len(args) {
 		case 0:
-			kp, err = kredsfile.Locate()
+			kp, err = spec.Locate()
 			if err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
@@ -45,7 +45,7 @@ var validateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		kf, errs := kredsfile.Parse(kp)
+		kf, errs := spec.Parse(kp)
 		if len(errs) > 0 {
 			errMsgs := make([]string, len(errs))
 			for i, err := range errs {

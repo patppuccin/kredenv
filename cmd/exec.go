@@ -6,13 +6,14 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 )
 
-const helpExecCmd = "Executes a command with secrets injected into its environment"
+const helpExecCmd = "Execute a command with secrets injected into its environment"
 
 var execExamples = `  # Execute a command with secrets from the default namespace
   kredenv exec -- node server.js
@@ -39,13 +40,13 @@ var execCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		path, err := kredsfile.Locate()
+		path, err := spec.Locate()
 		if err != nil || path == "" {
 			console.Error("No .kredsfile found")
 			os.Exit(1)
 		}
 
-		kf, errs := kredsfile.Parse(path)
+		kf, errs := spec.Parse(path)
 		if len(errs) > 0 {
 			errMsgs := make([]string, len(errs))
 			for i, e := range errs {
@@ -54,6 +55,19 @@ var execCmd = &cobra.Command{
 			console.ErrorGroup("Failed to parse .kredsfile", errMsgs)
 			os.Exit(1)
 		}
+
+		password, err := auth.Retrieve()
+		if err != nil {
+			console.Error(err.Error())
+			os.Exit(1)
+		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			console.Error("Could not open store")
+			os.Exit(1)
+		}
+		defer s.Close()
 
 		ns := flagExecNamespace
 		if ns == "" {
@@ -74,7 +88,7 @@ var execCmd = &cobra.Command{
 				}
 			}
 
-			value, err := keyring.Get(secret.Key)
+			value, err := s.Get(secret.Key)
 			if err != nil {
 				if !secret.Optional {
 					missingRequired = append(missingRequired, secret.Key)

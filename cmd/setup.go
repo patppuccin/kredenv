@@ -1,129 +1,123 @@
 package cmd
 
 import (
-	"bufio"
-	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 
-	"github.com/mattn/go-isatty"
+	"github.com/patppuccin/kredenv/consts"
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/helpers"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 )
 
-const helpSetupCmd = "Finds missing env vars and prompts to be stored in the keyring"
+const helpSetupCmd = "Initialize kredenv on this machine"
 
 var (
-	flagSetupNamespace string
+	flagSetupOverwrite bool
+	flagSetupNuke      bool
 )
 
 var setupCmd = &cobra.Command{
 	Use:           "setup",
 	Short:         helpSetupCmd,
 	Long:          console.Banner(helpSetupCmd),
-	Args:          cobra.NoArgs,
 	GroupID:       "setup",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !isatty.IsTerminal(os.Stdin.Fd()) {
-			console.Error("setup requires a terminal to prompt for values")
+		if len(args) > 0 {
+			console.Error("The '" + cmd.CommandPath() + "' command does not accept any arguments")
 			os.Exit(1)
 		}
 
-		path, err := kredsfile.Locate()
+		rootDir, err := helpers.GetRootDir()
 		if err != nil {
 			console.Error(err.Error())
 			os.Exit(1)
 		}
-		if path == "" {
-			console.Warn("no .kredsfile found")
+
+		_, rootErr := os.Stat(rootDir)
+		rootExists := rootErr == nil
+
+		if rootExists {
+			if flagSetupNuke {
+				confirmed, err := console.PromptConfirm("This will delete all kredenv configuration and secrets. Are you sure?")
+				if err != nil || !confirmed {
+					console.Error("Aborted")
+					os.Exit(1)
+				}
+				if err := os.RemoveAll(rootDir); err != nil {
+					console.Error("Could not remove " + rootDir)
+					os.Exit(1)
+				}
+				console.Success("kredenv configuration wiped")
+			}
+
+			if flagSetupOverwrite {
+				existingPassword, err := auth.Retrieve()
+				if err != nil {
+					console.Error("Could not retrieve master password — use --nuke to reset")
+					os.Exit(1)
+				}
+
+				newPassword, err := console.PromptAndConfirmPassword("Enter new master password: ", "Confirm new master password: ")
+				if err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+
+				if err := store.Migrate(existingPassword, newPassword); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+
+				if err := auth.Store(newPassword); err != nil {
+					console.Error("Could not store master password")
+					os.Exit(1)
+				}
+
+				console.Success("kredenv re-configured successfully")
+				return
+			}
+
+			console.Error("kredenv is already configured: use --overwrite to re-configure or --nuke to wipe everything")
 			os.Exit(1)
 		}
 
-		kf, errs := kredsfile.Parse(path)
-		if len(errs) > 0 {
-			errMsgs := make([]string, len(errs))
-			for i, err := range errs {
-				errMsgs[i] = err.Error()
-			}
-			console.ErrorGroup("Failed to parse "+path, errMsgs)
+		// If crossed this point, kredenv is to be freshly configured
+
+		password, err := console.PromptAndConfirmPassword("Enter master password: ", "Confirm master password: ")
+		if err != nil {
+			console.Error(err.Error())
 			os.Exit(1)
 		}
 
-		stored, skipped, alreadySet := []string{}, []string{}, []string{}
-
-		reader := bufio.NewReader(os.Stdin)
-
-		ns := flagSetupNamespace
-		if ns == "" {
-			ns = kf.AutoloadNamespace
-		}
-		nsLabel := ""
-		if ns != "" {
-			nsLabel = " (namespace: " + ns + ")"
+		if err := os.MkdirAll(rootDir, 0700); err != nil {
+			console.Error("Could not create " + rootDir)
+			os.Exit(1)
 		}
 
-		for _, secret := range kf.Secrets {
-			if ns != "" {
-				if !strings.HasPrefix(secret.Key, ns+":") {
-					continue
-				}
-			} else {
-				if strings.Contains(secret.Key, ":") {
-					continue
-				}
-			}
-
-			if keyring.Exists(secret.Key) {
-				alreadySet = append(alreadySet, secret.Key)
-				continue
-			}
-
-			fmt.Printf("\nEnter value for %q: ", secret.Key)
-			input, err := reader.ReadString('\n')
-			if err != nil {
-				console.Error("Could not read input")
-				os.Exit(1)
-			}
-			value := strings.TrimSpace(input)
-
-			if value == "" {
-				skipped = append(skipped, secret.Key)
-				continue
-			}
-
-			if err := keyring.Set(secret.Key, value); err != nil {
-				console.Error("Could not store " + secret.Key)
-				os.Exit(1)
-			}
-
-			stored = append(stored, secret.Key)
+		encFilePath := filepath.Join(rootDir, consts.EncFileName)
+		if err := os.WriteFile(encFilePath, []byte{}, 0600); err != nil {
+			console.Error("Could not create store file")
+			os.Exit(1)
 		}
 
-		if len(stored) == 0 && len(skipped) == 0 {
-			console.Success("All secrets already set in keyring" + nsLabel)
-			return
+		if err := auth.Store(password); err != nil {
+			console.Error("Could not store master password")
+			os.Exit(1)
 		}
 
-		joinOrNone := func(s []string) string {
-			if len(s) == 0 {
-				return "none"
-			}
-			return strings.Join(s, ", ")
-		}
+		console.Success("kredenv configured successfully")
 
-		console.InfoGroup("Setup complete"+nsLabel, []string{
-			"Stored      :" + joinOrNone(stored),
-			"Skipped     :" + joinOrNone(skipped),
-			"Already set :" + joinOrNone(alreadySet),
-		})
 	},
 }
 
 func init() {
 	setupCmd.Flags().SortFlags = false
-	setupCmd.Flags().StringVarP(&flagSetupNamespace, "namespace", "n", "", "Setup keys only for a specific namespace")
+	setupCmd.Flags().BoolVar(&flagSetupOverwrite, "overwrite", false, "Re-configure and re-encrypt existing secrets with a new password")
+	setupCmd.Flags().BoolVar(&flagSetupNuke, "nuke", false, "Wipe all kredenv configuration and secrets")
+	setupCmd.MarkFlagsMutuallyExclusive("overwrite", "nuke")
 }

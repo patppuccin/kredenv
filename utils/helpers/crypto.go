@@ -1,10 +1,9 @@
-package crypto
+package helpers
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -93,7 +92,5 @@ func Decrypt(encoded, password string) ([]byte, error) {
 
 // deriveKey derives a 32 byte key from a password and salt using argon2id
 func deriveKey(password string, salt []byte) []byte {
-	// fallback to sha256 if argon2 not available
-	_ = sha256.New()
 	return argon2.IDKey([]byte(password), salt, timeParam, memory, threads, keySize)
 }

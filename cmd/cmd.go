@@ -34,9 +34,9 @@ func init() {
 	})
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "setup", Title: "Setup Commands:"})
+	KredEnvCmd.AddCommand(setupCmd)
 	KredEnvCmd.AddCommand(initCmd)
 	KredEnvCmd.AddCommand(hookCmd)
-	KredEnvCmd.AddCommand(setupCmd)
 
 	KredEnvCmd.AddGroup(&cobra.Group{ID: "env", Title: "Environment Commands:"})
 	KredEnvCmd.AddCommand(loadCmd)
@@ -46,7 +46,7 @@ func init() {
 	KredEnvCmd.AddCommand(validateCmd)
 	KredEnvCmd.AddCommand(injectCmd)
 
-	KredEnvCmd.AddGroup(&cobra.Group{ID: "keyring", Title: "Keyring Commands:"})
+	KredEnvCmd.AddGroup(&cobra.Group{ID: "secrets", Title: "Secrets Commands:"})
 	KredEnvCmd.AddCommand(setCmd)
 	KredEnvCmd.AddCommand(getCmd)
 	KredEnvCmd.AddCommand(listCmd)

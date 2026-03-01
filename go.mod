@@ -10,6 +10,7 @@ require (
 	github.com/zalando/go-keyring v0.2.6
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/crypto v0.48.0
+	golang.org/x/term v0.40.0
 )
 
 require (

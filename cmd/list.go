@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/keyring"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 )
 
-const helpListCmd = "Lists keys from the local .kredsfile or the keyring"
+const helpListCmd = "List secrets from the .kredsfile or the store"
 
 var (
 	flagListAll        bool
@@ -24,7 +25,7 @@ var listCmd = &cobra.Command{
 	Use:           "list",
 	Short:         helpListCmd,
 	Long:          console.Banner(helpListCmd),
-	GroupID:       "keyring",
+	GroupID:       "secrets",
 	Aliases:       []string{"ls"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -34,16 +35,29 @@ var listCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		password, err := auth.Retrieve()
+		if err != nil {
+			console.Error(err.Error())
+			os.Exit(1)
+		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			console.Error("Could not open store")
+			os.Exit(1)
+		}
+		defer s.Close()
+
 		if flagListAll {
-			listFromKeyring(flagListNamespace)
+			listFromStore(s, flagListNamespace)
 		} else {
-			listFromKredsfile(flagListNamespace)
+			listFromKredsfile(s, flagListNamespace)
 		}
 	},
 }
 
-func listFromKredsfile(ns string) {
-	path, err := kredsfile.Locate()
+func listFromKredsfile(s *store.Store, ns string) {
+	path, err := spec.Locate()
 	if err != nil {
 		console.Error(err.Error())
 		os.Exit(1)
@@ -53,7 +67,7 @@ func listFromKredsfile(ns string) {
 		os.Exit(1)
 	}
 
-	kf, errs := kredsfile.Parse(path)
+	kf, errs := spec.Parse(path)
 	if len(errs) > 0 {
 		if len(errs) == 1 {
 			console.Error(errs[0].Error())
@@ -81,7 +95,7 @@ func listFromKredsfile(ns string) {
 			}
 		}
 
-		value, err := keyring.Get(secret.Key)
+		value, err := s.Get(secret.Key)
 		if err == nil {
 			if flagListShowValues {
 				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s = %s", secret.Alias, secret.Key, value))
@@ -101,31 +115,23 @@ func listFromKredsfile(ns string) {
 	}
 }
 
-func listFromKeyring(ns string) {
-	keys, err := keyring.List()
+func listFromStore(s *store.Store, ns string) {
+	data, err := s.List()
 	if err != nil {
 		console.Error(err.Error())
 		os.Exit(1)
 	}
-	if len(keys) == 0 {
-		console.Warn("No keys found in keyring")
+	if len(data) == 0 {
+		console.Warn("No secrets found in store")
 		return
 	}
 
-	msgs := make([]string, 0, len(keys))
-	for _, key := range keys {
-		if ns != "" {
-			if !strings.HasPrefix(key, ns+":") {
-				continue
-			}
+	msgs := make([]string, 0, len(data))
+	for key, value := range data {
+		if ns != "" && !strings.HasPrefix(key, ns+":") {
+			continue
 		}
-
 		if flagListShowValues {
-			value, err := keyring.Get(key)
-			if err != nil {
-				msgs = append(msgs, fmt.Sprintf("%s = <not set>", key))
-				continue
-			}
 			msgs = append(msgs, fmt.Sprintf("%s = %s", key, value))
 		} else {
 			msgs = append(msgs, key)
@@ -133,16 +139,16 @@ func listFromKeyring(ns string) {
 	}
 
 	if len(msgs) == 0 && ns != "" {
-		console.Warn("No keys found for namespace: " + ns)
+		console.Warn("No secrets found for namespace: " + ns)
 		return
 	}
 
-	console.InfoGroup("Keyring Keys", msgs)
+	console.InfoGroup("Store secrets", msgs)
 }
 
 func init() {
 	listCmd.Flags().SortFlags = false
 	listCmd.Flags().BoolVar(&flagListShowValues, "show-values", false, "Show secret values (use with caution)")
-	listCmd.Flags().BoolVarP(&flagListAll, "all", "a", false, "List all keys in the keyring instead")
+	listCmd.Flags().BoolVarP(&flagListAll, "all", "a", false, "List all secrets in the store")
 	listCmd.Flags().StringVarP(&flagListNamespace, "namespace", "n", "", "Filter by namespace")
 }

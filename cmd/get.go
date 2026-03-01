@@ -5,12 +5,13 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/keyring"
+	"github.com/patppuccin/kredenv/utils/store"
 	"github.com/spf13/cobra"
 )
 
-const helpGetCmd = "Prints the value of a key from the keyring"
+const helpGetCmd = "Retrieve a secret from the kredenv store"
 
 var (
 	flagGetNamespace string
@@ -20,7 +21,7 @@ var getCmd = &cobra.Command{
 	Use:           "get <key>",
 	Short:         helpGetCmd,
 	Long:          console.Banner(helpGetCmd),
-	GroupID:       "keyring",
+	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -34,16 +35,30 @@ var getCmd = &cobra.Command{
 			key = flagGetNamespace + ":" + key
 		}
 
-		value, err := keyring.Get(key)
+		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error("Could not retrieve key " + key)
+			console.Error(err.Error())
 			os.Exit(1)
 		}
+
+		s, err := store.Open(password)
+		if err != nil {
+			console.Error("Could not open store")
+			os.Exit(1)
+		}
+		defer s.Close()
+
+		value, err := s.Get(key)
+		if err != nil {
+			console.Error("Could not retrieve " + key)
+			os.Exit(1)
+		}
+
 		fmt.Println(value)
 	},
 }
 
 func init() {
 	getCmd.Flags().SortFlags = false
-	getCmd.Flags().StringVarP(&flagGetNamespace, "namespace", "n", "", "Get keys from a specific namespace")
+	getCmd.Flags().StringVarP(&flagGetNamespace, "namespace", "n", "", "Get key from a specific namespace")
 }

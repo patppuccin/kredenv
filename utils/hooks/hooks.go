@@ -1,4 +1,4 @@
-package shells
+package hooks
 
 import (
 	_ "embed"
@@ -6,19 +6,19 @@ import (
 	"strings"
 )
 
-//go:embed integrations/bash-hook.sh
+//go:embed include/bash-hook.sh
 var hookBash string
 
-//go:embed integrations/zsh-hook.sh
+//go:embed include/zsh-hook.sh
 var hookZsh string
 
-//go:embed integrations/fish-hook.fish
+//go:embed include/fish-hook.fish
 var hookFish string
 
-//go:embed integrations/pwsh-hook.ps1
+//go:embed include/pwsh-hook.ps1
 var hookPowershell string
 
-//go:embed integrations/nushell-hook.nu
+//go:embed include/nushell-hook.nu
 var hookNushell string
 
 type Shell struct {

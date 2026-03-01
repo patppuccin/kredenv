@@ -6,18 +6,18 @@ import (
 	"strings"
 
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/shells"
+	"github.com/patppuccin/kredenv/utils/hooks"
 	"github.com/spf13/cobra"
 )
 
 const helpHookCmd = "Emits a shell hook script"
 
 var usageInstructions = `
-Supported shells: ` + shells.Names() + `
+Supported shells: ` + hooks.Names() + `
 
 Run the appropriate command once to install the hook:
 
- - ` + strings.Join(shells.SetupCmds(), "\n - ")
+ - ` + strings.Join(hooks.SetupCmds(), "\n - ")
 
 var hookCmd = &cobra.Command{
 	Use:           "hook <shell>",
@@ -32,10 +32,10 @@ var hookCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		sh, ok := shells.Get(args[0])
+		sh, ok := hooks.Get(args[0])
 		if !ok {
 			console.Error("The shell '" + args[0] + "' is not supported")
-			console.Info("Supported shells are " + shells.Names())
+			console.Info("Supported shells are " + hooks.Names())
 			os.Exit(1)
 		}
 		fmt.Println(sh.Hook)

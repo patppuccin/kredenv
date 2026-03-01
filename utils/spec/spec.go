@@ -1,4 +1,4 @@
-package kredsfile
+package spec
 
 import (
 	"bufio"

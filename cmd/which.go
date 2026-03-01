@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/kredsfile"
+	"github.com/patppuccin/kredenv/utils/spec"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ var whichCmd = &cobra.Command{
 			console.Error("No arguments expected, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
-		kp, err := kredsfile.Locate()
+		kp, err := spec.Locate()
 		if err != nil {
 			console.Error(err.Error())
 			os.Exit(1)
