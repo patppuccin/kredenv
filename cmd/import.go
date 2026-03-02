@@ -174,7 +174,7 @@ func getDecryptionPassword(grouped map[string]map[string]string) (string, error)
 	for _, secrets := range grouped {
 		for _, value := range secrets {
 			if strings.HasPrefix(value, "enc:") {
-				pwd, err := console.PromptSecret("Enter decryption password: ")
+				pwd, err := console.PromptSecret("Enter decryption password")
 				if err != nil {
 					return "", fmt.Errorf("could not read password")
 				}

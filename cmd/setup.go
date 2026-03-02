@@ -97,14 +97,14 @@ var setupCmd = &cobra.Command{
 					os.Exit(1)
 				}
 
-				existingPassword, promptErr = console.PromptSecret("Enter existing password: ")
+				existingPassword, promptErr = console.PromptSecret("Enter existing password")
 				if promptErr != nil || existingPassword == "" {
 					console.Error("Password cannot be empty")
 					os.Exit(1)
 				}
 			}
 
-			newPassword, err := console.PromptAndConfirmPassword("Enter new master password: ", "Confirm new master password: ")
+			newPassword, err := console.PromptAndConfirmPassword("Enter new master password", "Confirm new master password")
 			if err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
@@ -126,7 +126,7 @@ var setupCmd = &cobra.Command{
 
 		// If crossed this point, kredenv is to be freshly configured
 
-		password, err := console.PromptAndConfirmPassword("Enter master password: ", "Confirm master password: ")
+		password, err := console.PromptAndConfirmPassword("Enter master password", "Confirm master password")
 		if err != nil {
 			console.Error(err.Error())
 			os.Exit(1)

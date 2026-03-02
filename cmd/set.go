@@ -50,7 +50,7 @@ var setCmd = &cobra.Command{
 			}
 
 			var err error
-			value, err = console.PromptSecret("Value for " + key + ": ")
+			value, err = console.PromptSecret("Value for " + key)
 			if err != nil {
 				console.Error("Could not read input")
 				os.Exit(1)

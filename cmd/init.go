@@ -118,7 +118,7 @@ var initCmd = &cobra.Command{
 				continue
 			}
 
-			value, err := console.PromptSecret("\nEnter value for " + secret.Key + ": ")
+			value, err := console.PromptSecret("\nEnter value for " + secret.Key)
 			if err != nil {
 				console.Error("Could not read input")
 				os.Exit(1)
