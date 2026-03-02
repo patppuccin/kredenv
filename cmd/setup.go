@@ -32,6 +32,16 @@ var setupCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		if flagSetupOverwrite && flagSetupNuke {
+			console.ErrorGroup("Cannot use --overwrite and --nuke at the same time",
+				[]string{
+					"If you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
+					"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
+				},
+			)
+			os.Exit(1)
+		}
+
 		rootDir, err := helpers.GetRootDir()
 		if err != nil {
 			console.Error(err.Error())
@@ -52,38 +62,66 @@ var setupCmd = &cobra.Command{
 					console.Error("Could not remove " + rootDir)
 					os.Exit(1)
 				}
-				console.Success("kredenv configuration wiped")
-			}
-
-			if flagSetupOverwrite {
-				existingPassword, err := auth.Retrieve()
-				if err != nil {
-					console.Error("Could not retrieve master password — use --nuke to reset")
-					os.Exit(1)
-				}
-
-				newPassword, err := console.PromptAndConfirmPassword("Enter new master password: ", "Confirm new master password: ")
-				if err != nil {
-					console.Error(err.Error())
-					os.Exit(1)
-				}
-
-				if err := store.Migrate(existingPassword, newPassword); err != nil {
-					console.Error(err.Error())
-					os.Exit(1)
-				}
-
-				if err := auth.Store(newPassword); err != nil {
-					console.Error("Could not store master password")
-					os.Exit(1)
-				}
-
-				console.Success("kredenv re-configured successfully")
+				console.Success("Previous kredenv configuration wiped successfully")
+				console.Info("Run '" + cmd.CommandPath() + "' again to configure with a new password")
 				return
 			}
 
-			console.Error("kredenv is already configured: use --overwrite to re-configure or --nuke to wipe everything")
-			os.Exit(1)
+			existingPassword, err := auth.Retrieve()
+
+			if existingPassword != "" && !flagSetupOverwrite {
+				console.WarnGroup(
+					consts.AppName+" is already configured and functional",
+					[]string{
+						"If you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
+						"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
+					},
+				)
+				os.Exit(1)
+			}
+
+			if err != nil {
+				if !flagSetupOverwrite {
+					console.ErrorGroup(consts.AppName+" is already configured but unable to authenticate",
+						[]string{
+							"If previous password is known and you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
+							"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
+						},
+					)
+					os.Exit(1)
+				}
+
+				knowsPwd, promptErr := console.PromptConfirm("Could not retrieve existing password. Do you remember it?")
+				if promptErr != nil || !knowsPwd {
+					console.Error("Use --nuke to wipe everything and start fresh")
+					os.Exit(1)
+				}
+
+				existingPassword, promptErr = console.PromptSecret("Enter existing password: ")
+				if promptErr != nil || existingPassword == "" {
+					console.Error("Password cannot be empty")
+					os.Exit(1)
+				}
+			}
+
+			newPassword, err := console.PromptAndConfirmPassword("Enter new master password: ", "Confirm new master password: ")
+			if err != nil {
+				console.Error(err.Error())
+				os.Exit(1)
+			}
+
+			if err := store.Migrate(existingPassword, newPassword); err != nil {
+				console.Error(err.Error())
+				os.Exit(1)
+			}
+
+			if err := auth.Store(newPassword); err != nil {
+				console.Error("Could not store master password")
+				os.Exit(1)
+			}
+
+			console.Success("kredenv re-configured successfully")
+			return
 		}
 
 		// If crossed this point, kredenv is to be freshly configured
@@ -117,7 +155,6 @@ var setupCmd = &cobra.Command{
 
 func init() {
 	setupCmd.Flags().SortFlags = false
-	setupCmd.Flags().BoolVar(&flagSetupOverwrite, "overwrite", false, "Re-configure and re-encrypt existing secrets with a new password")
+	setupCmd.Flags().BoolVar(&flagSetupOverwrite, "overwrite", false, "Re-encrypt secrets with a new master password")
 	setupCmd.Flags().BoolVar(&flagSetupNuke, "nuke", false, "Wipe all kredenv configuration and secrets")
-	setupCmd.MarkFlagsMutuallyExclusive("overwrite", "nuke")
 }
