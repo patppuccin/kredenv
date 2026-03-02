@@ -4,19 +4,27 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/patppuccin/kredenv)](https://goreportcard.com/report/github.com/patppuccin/kredenv)
 [![License](https://img.shields.io/github/license/patppuccin/kredenv)](LICENSE)
 
-Inject secrets and environment variables from your OS keyring into your shell session. No plaintext files. No accidental commits.
+Inject secrets and environment variables from a locally encrypted vault into your shell session. No plaintext files. No accidental commits. No secrets leakage.
 
 ## How it works
 
-kredenv reads a `.kredsfile` in your project directory. Each entry maps an environment variable name to a key stored in your OS keyring. When you `cd` into the directory, kredenv resolves the keys from the keyring and injects them into your shell session. When you leave, they are unloaded.
+*kredenv* reads a `.kredsfile` in your project directory and maps each entry to a secret stored in your locally encrypted vault.
 
-Secrets live in your OS keyring, which is _Keychain_ on _macOS_, _Credential Manager_ on _Windows_, _libsecret_ on _Linux_. They are never written to disk in plaintext and never leave your machine unless you explicitly export them.
+When you run `kredenv setup`, you create a master password. That password derives a 256-bit key using Argon2 and decrypts the vault using AES-256-GCM.
 
-Each developer manages their own keyring. There is no shared secrets file, no `.env` to `.gitignore`, no risk of accidentally committing credentials. As a matter of fact, `.kredsfile` must be committed to your repository, so that collaborators can use it to setup secrets in their own keyring easily.
+When you `cd` into a directory containing a `.kredsfile`, kredenv:
+
+- Decrypts the vault in memory
+- Resolves required secrets
+- Injects them into your shell session
+
+When you leave the directory or project scope, the variables are unloaded. Secrets are never written to disk in plaintext. They never leave your machine unless you explicitly export them.
+
+Each developer maintains their own encrypted vault. There is no shared secrets file, no `.env` to `.gitignore`, and no risk of committing credentials. The `.kredsfile` must be committed so collaborators know which secrets are required and can populate their own vault securely.
 
 ## Installation
 
-**Via convenience script (recommended):**
+**Convenience script (recommended):**
 
 _Linux & macOS:_
 
@@ -29,48 +37,51 @@ _Windows (PowerShell 5.1+):_
 ```powershell
 powershell -ExecutionPolicy Bypass -NoProfile -c "irm https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.ps1 | iex"
 ```
+The script downloads the latest release and installs it into your PATH.
 
 **Via prebuilt binary:**
 
-Download the latest release for your platform from the [releases page](https://github.com/patppuccin/kredenv/releases).
+Download the appropriate binary for your platform and architecture from the [releases page](https://github.com/patppuccin/kredenv/releases).
 
 ## Setup
 
-kredenv requires a shell hook to inject and unload secrets automatically as you navigate directories. Run the appropriate command once and restart your shell session to enable it.
+kredenv uses a shell hook to automatically load and unload secrets as you move between directories.
 
-**Bash:**
+Add the appropriate hook to your shell configuration and restart your session.
+
+**Bash**
 
 ```sh
 echo 'eval "$(kredenv hook bash)"' >> ~/.bashrc
 ```
 
-**Zsh:**
+Zsh
 
 ```sh
 echo 'eval "$(kredenv hook zsh)"' >> ~/.zshrc
 ```
 
-**Fish:**
+Fish
 
 ```sh
 echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish
 ```
 
-**Nushell:**
-
-```sh
-kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
-```
-
-**PowerShell:**
+PowerShell
 
 ```powershell
 Add-Content $PROFILE 'Invoke-Expression (& { (kredenv hook powershell | Out-String) })'
 ```
 
+Nushell
+
+```sh
+kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
+```
+
 ## The `.kredsfile`
 
-Place a `.kredsfile` in your project root. kredenv walks up the directory tree to find the nearest one.
+Place a `.kredsfile` in your project root. kredenv walks up the directory tree to locate the nearest one.
 
 ```txt
 # .kredsfile
@@ -107,7 +118,7 @@ To store secrets in the keyring:
 
 ```sh
 kredenv set AWS_ACCESS_KEY_ID
-kredenv set AWS_SECRET_ACCESS_KEY my-super-secret-aws-secret-access-key
+kredenv set AWS_SECRET_ACCESS_KEY super-secret-value
 ```
 
 To validate your `.kredsfile`:
@@ -118,10 +129,9 @@ kredenv validate
 
 ## Namespaces
 
-Namespaces let you manage secrets for multiple environments in the same keyring without collision.
+Namespaces let you manage secrets for multiple environments inside the same encrypted vault without collisions.
 
 ```sh
-# store secrets under a namespace
 kredenv set AWS_ACCESS_KEY_ID -n staging
 kredenv set AWS_ACCESS_KEY_ID -n production
 
@@ -145,32 +155,32 @@ The `autoload for <namespace>` directive controls which namespace gets loaded au
 
 ### Setup
 
-| Command                | Description                                        |
-| ---------------------- | -------------------------------------------------- |
-| `kredenv init`         | Initialize a `.kredsfile` in the current directory |
-| `kredenv setup`        | Interactively store missing secrets in the keyring |
-| `kredenv hook <shell>` | Emit the shell integration script                  |
+| Command                | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `kredenv setup`        | Initialize kredenv on this machine and create the vault       |
+| `kredenv init`         | Initialize a `.kredsfile` and optionally fill missing secrets |
+| `kredenv hook <shell>` | Emit the shell integration script                             |
 
 ### Environment
 
-| Command              | Description                                              |
-| -------------------- | -------------------------------------------------------- |
-| `kredenv load`       | Show currently loaded secrets                            |
-| `kredenv unload`     | Unload secrets from the current session                  |
-| `kredenv exec <cmd>` | Run a command with secrets injected into its environment |
-| `kredenv which`      | Print the path to the `.kredsfile` in scope              |
-| `kredenv validate`   | Validate `.kredsfile` syntax                             |
+| Command              | Description                                                      |
+| -------------------- | ---------------------------------------------------------------- |
+| `kredenv load`       | Load secrets from the `.kredsfile` in scope into the environment |
+| `kredenv unload`     | Unload kredenv secrets from the current session                  |
+| `kredenv exec <cmd>` | Run a command with secrets injected into its environment         |
+| `kredenv which`      | Print the path to the `.kredsfile` in scope                      |
+| `kredenv validate`   | Validate `.kredsfile` syntax                                     |
 
-### Keyring
+### Secrets
 
-| Command                 | Description                                 |
-| ----------------------- | ------------------------------------------- |
-| `kredenv set <key>`     | Store a secret in the keyring               |
-| `kredenv get <key>`     | Retrieve a secret from the keyring          |
-| `kredenv delete <key>`  | Delete a secret from the keyring            |
-| `kredenv list`          | List keys defined in the `.kredsfile`       |
-| `kredenv export`        | Export secrets to stdout or a file          |
-| `kredenv import <file>` | Import secrets from a file into the keyring |
+| Command                 | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| `kredenv set <key>`     | Store a secret in the encrypted vault               |
+| `kredenv get <key>`     | Retrieve a secret from the encrypted vault          |
+| `kredenv list`          | List secrets defined in the `.kredsfile` or vault   |
+| `kredenv delete <key>`  | Delete one or more secrets from the encrypted vault |
+| `kredenv export`        | Export secrets to stdout or a file                  |
+| `kredenv import <file>` | Import secrets from a file into the encrypted vault |
 
 ## Export & Import
 
@@ -226,11 +236,11 @@ kredenv exec -n staging -- rails db:migrate
 
 ## Caveats
 
-**Linux:** Requires a running keyring daemon (`gnome-keyring` or `kwallet`). Headless environments and most CI systems do not have one. kredenv is intended for local developer machines, not CI pipelines.
+**Local-first:** kredenv stores secrets in a locally encrypted vault. It is designed for developer machines. It does not provide centralized secret management. Losing your master password means losing access to your secrets.
 
-**CI / Production:** kredenv is not a secrets manager for shared or remote environments. For CI, use your platform's native secret injection (GitHub Actions secrets, GitLab CI variables, etc.). For production, use a dedicated secrets manager such as HashiCorp Vault, AWS SSM, or 1Password CLI.
+**CI / Production:** kredenv is not a remote secrets manager. For CI, use your platform’s native secret injection (GitHub Actions secrets, GitLab CI variables, etc.). For production systems, use a dedicated secrets manager such as HashiCorp Vault or AWS SSM.
 
-**Per-machine:** Keyring secrets are stored per-user, per-machine. Each developer must run `kredenv setup` or `kredenv set` to populate their own keyring.
+**Per-machine:** The encrypted vault is per-user, per-machine. Each developer must run `kredenv setup` to create their vault and populate required secrets.
 
 ## Acknowledgements
 
@@ -238,7 +248,7 @@ kredenv is built on the shoulders of these open source projects:
 
 - [**fatih/color**](https://github.com/fatih/color) - For dead-simple terminal styling
 - [**spf13/cobra**](https://github.com/spf13/cobra) - For an intuitive CLI framework
-- [**zalando/go-keyring**](https://github.com/zalando/go-keyring) - The keyring API which does all the heavy lifting and cross-platform compatibility
+- [**zalando/go-keyring**](https://github.com/zalando/go-keyring) - The keyring API with cross-platform compatibility
 - [**mattn/go-isatty**](https://github.com/mattn/go-isatty) - For checking if a terminal is interactive
 
 And to the Go team, for designing a language where a tool like this can go from idea to working binary in a weekend.
@@ -254,7 +264,6 @@ The code, the design, the opinions and most importantly noob'ish coding practice
 - [ ] Add a reasonable test suite
 - [ ] Guides on integrating with terminal prompt libraries (e.g. Starship, Oh My Posh)
 - [ ] IDE integrations for syntax highlighting and autocompletion
-- [ ] Add support for alternative backends (e.g. local encryption, secrets managers)
 - [ ] Explore a remote sync mechanism for `.kredsfile` and keyring secrets
 
 ## Contributing
