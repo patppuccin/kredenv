@@ -55,7 +55,7 @@ var importCmd = &cobra.Command{
 		if !isEnvFile && !isStructured {
 			console.ErrorGroup(
 				"Files with extension "+ext+" are not supported",
-				[]string{"Supported formats: .env, .env.<namespace>, .json, .yaml, .yml, .toml"},
+				"Supported formats: .env, .env.<namespace>, .json, .yaml, .yml, .toml}",
 			)
 			os.Exit(1)
 		}
@@ -100,7 +100,7 @@ var importCmd = &cobra.Command{
 			}
 
 			if len(envParseErr) > 0 {
-				console.ErrorGroup("Could not parse env file", envParseErr)
+				console.ErrorGroup("Could not parse env file", envParseErr...)
 				os.Exit(1)
 			}
 
@@ -159,14 +159,15 @@ var importCmd = &cobra.Command{
 		imported, skipped, misses := storeInStore(s, grouped)
 
 		if len(misses) > 0 {
-			console.ErrorGroup("Failed to store some keys", misses)
+			console.ErrorGroup("Failed to store some keys", misses...)
 		}
 
-		console.InfoGroup("Import complete", []string{
-			"Imported " + fmt.Sprintf("%d", imported) + " keys",
-			"Skipped " + fmt.Sprintf("%d", skipped) + " keys",
-			"Failed to store " + fmt.Sprintf("%d", len(misses)) + " keys",
-		})
+		console.InfoGroup(
+			"Import complete",
+			"Imported "+fmt.Sprintf("%d", imported)+" keys",
+			"Skipped "+fmt.Sprintf("%d", skipped)+" keys",
+			"Failed to store "+fmt.Sprintf("%d", len(misses))+" keys",
+		)
 	},
 }
 

@@ -149,11 +149,12 @@ var initCmd = &cobra.Command{
 			return strings.Join(s, ", ")
 		}
 
-		console.InfoGroup("Setup complete"+nsLabel, []string{
-			"Stored      : " + joinOrNone(stored),
-			"Skipped     : " + joinOrNone(skipped),
-			"Already set : " + joinOrNone(alreadySet),
-		})
+		console.InfoGroup(
+			"Setup complete"+nsLabel,
+			"Stored      : "+joinOrNone(stored),
+			"Skipped     : "+joinOrNone(skipped),
+			"Already set : "+joinOrNone(alreadySet),
+		)
 	},
 }
 

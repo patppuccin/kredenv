@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -33,124 +34,220 @@ var setupCmd = &cobra.Command{
 		}
 
 		if flagSetupOverwrite && flagSetupNuke {
-			console.ErrorGroup("Cannot use --overwrite and --nuke at the same time",
-				[]string{
-					"If you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
-					"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
-				},
+			console.ErrorGroup(
+				"Cannot use --overwrite and --nuke at the same time",
+				"To re-configure, run '"+cmd.CommandPath()+" --overwrite'",
+				"To wipe everything, run '"+cmd.CommandPath()+" --nuke'",
 			)
 			os.Exit(1)
 		}
 
-		rootDir, err := helpers.GetRootDir()
-		if err != nil {
-			console.Error(err.Error())
-			os.Exit(1)
-		}
-
-		_, rootErr := os.Stat(rootDir)
-		rootExists := rootErr == nil
-
-		if rootExists {
-			if flagSetupNuke {
-				confirmed, err := console.PromptConfirm("This will delete all kredenv configuration and secrets. Are you sure?")
-				if err != nil || !confirmed {
-					console.Error("Aborted")
-					os.Exit(1)
-				}
-				if err := os.RemoveAll(rootDir); err != nil {
-					console.Error("Could not remove " + rootDir)
-					os.Exit(1)
-				}
-				console.Success("Previous kredenv configuration wiped successfully")
-				console.Info("Run '" + cmd.CommandPath() + "' again to configure with a new password")
-				return
+		existingPassword, _ := auth.Retrieve()
+		hasValidPassword := false
+		if existingPassword != "" {
+			if _, err := store.Open(existingPassword); err == nil {
+				hasValidPassword = true
 			}
+		}
+		hasStore := store.Exists()
 
-			existingPassword, err := auth.Retrieve()
+		switch {
+		case hasValidPassword && hasStore:
+			switch {
+			case flagSetupNuke:
+				if err := nukeSetup(); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+				if err := freshSetup(""); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
 
-			if existingPassword != "" && !flagSetupOverwrite {
+			case flagSetupOverwrite:
+				if err := migrateSetup(existingPassword, false); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+
+			default:
 				console.WarnGroup(
 					consts.AppName+" is already configured and functional",
-					[]string{
-						"If you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
-						"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
-					},
+					"To re-configure, run '"+cmd.CommandPath()+" --overwrite'",
+					"To wipe everything, run '"+cmd.CommandPath()+" --nuke'",
 				)
 				os.Exit(1)
 			}
 
-			if err != nil {
-				if !flagSetupOverwrite {
-					console.ErrorGroup(consts.AppName+" is already configured but unable to authenticate",
-						[]string{
-							"If previous password is known and you want to re-configure, run '" + cmd.CommandPath() + " --overwrite'",
-							"If you want to wipe everything (including secrets), run '" + cmd.CommandPath() + " --nuke'",
-						},
+		case hasValidPassword && !hasStore:
+			switch {
+			case flagSetupNuke:
+				if err := nukeSetup(); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+				if err := freshSetup(""); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+
+			default:
+				console.Info("Partial configuration detected, recovering...")
+				if err := freshSetup(existingPassword); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+			}
+
+		case !hasValidPassword && hasStore:
+			switch {
+			case flagSetupNuke:
+				if err := nukeSetup(); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+				if err := freshSetup(""); err != nil {
+					console.Error(err.Error())
+					os.Exit(1)
+				}
+
+			case flagSetupOverwrite:
+				console.InfoBlock(
+					"Secrets store found but login credentials are missing",
+					"The original password is required to recover existing secrets",
+					"To start fresh instead, run '"+cmd.CommandPath()+" --nuke'",
+				)
+				if !console.PromptConfirm("Do you remember the original password?") {
+					console.WarnGroup("Aborting setup",
+						"To start fresh, run '"+cmd.CommandPath()+" --nuke'",
 					)
 					os.Exit(1)
 				}
-
-				knowsPwd, promptErr := console.PromptConfirm("Could not retrieve existing password. Do you remember it?")
-				if promptErr != nil || !knowsPwd {
-					console.Error("Use --nuke to wipe everything and start fresh")
+				if err := migrateSetup("", true); err != nil {
+					console.Error(err.Error())
 					os.Exit(1)
 				}
 
-				existingPassword, promptErr = console.PromptSecret("Enter existing password")
-				if promptErr != nil || existingPassword == "" {
-					console.Error("Password cannot be empty")
-					os.Exit(1)
-				}
+			default:
+				console.ErrorGroup(
+					"Secrets store found but login credentials are missing",
+					"To recover, run '"+cmd.CommandPath()+" --overwrite'",
+					"To wipe everything and start fresh, run '"+cmd.CommandPath()+" --nuke'",
+				)
+				os.Exit(1)
 			}
 
-			newPassword, err := console.PromptAndConfirmPassword("Enter new master password", "Confirm new master password")
-			if err != nil {
+		case !hasValidPassword && !hasStore:
+			if flagSetupNuke || flagSetupOverwrite {
+				console.WarnGroup("Nothing to delete or overwrite, kredenv is not configured yet",
+					"Proceeding to a fresh setup",
+				)
+			}
+			if err := freshSetup(""); err != nil {
 				console.Error(err.Error())
 				os.Exit(1)
 			}
-
-			if err := store.Migrate(existingPassword, newPassword); err != nil {
-				console.Error(err.Error())
-				os.Exit(1)
-			}
-
-			if err := auth.Store(newPassword); err != nil {
-				console.Error("Could not store master password")
-				os.Exit(1)
-			}
-
-			console.Success("kredenv re-configured successfully")
-			return
 		}
-
-		// If crossed this point, kredenv is to be freshly configured
-
-		password, err := console.PromptAndConfirmPassword("Enter master password", "Confirm master password")
-		if err != nil {
-			console.Error(err.Error())
-			os.Exit(1)
-		}
-
-		if err := os.MkdirAll(rootDir, 0700); err != nil {
-			console.Error("Could not create " + rootDir)
-			os.Exit(1)
-		}
-
-		encFilePath := filepath.Join(rootDir, consts.EncFileName)
-		if err := os.WriteFile(encFilePath, []byte{}, 0600); err != nil {
-			console.Error("Could not create store file")
-			os.Exit(1)
-		}
-
-		if err := auth.Store(password); err != nil {
-			console.Error("Could not store master password")
-			os.Exit(1)
-		}
-
-		console.Success("kredenv configured successfully")
-
 	},
+}
+
+func nukeSetup() error {
+	confirmed := console.PromptConfirm("This will delete all kredenv configuration and secrets. Are you sure?")
+	if !confirmed {
+		return fmt.Errorf("aborted while deleting kredenv configuration")
+	}
+
+	rootDir, err := helpers.GetRootDir()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
+		return auth.Delete() // ensure login credential is deleted even if directory does not exist
+	}
+
+	if err := os.RemoveAll(rootDir); err != nil {
+		return fmt.Errorf("could not remove directory %s", rootDir)
+	}
+
+	if err := auth.Delete(); err != nil {
+		return err
+	}
+
+	console.Success("Configuration and secrets wiped successfully")
+	return nil
+}
+
+func freshSetup(withPassword string) error {
+
+	rootDir, err := helpers.GetRootDir()
+	if err != nil {
+		return err
+	}
+
+	encFilePath := filepath.Join(rootDir, consts.EncFileName)
+
+	if withPassword == "" {
+		console.InfoBlock("Create master password",
+			"Encrypts all secrets and credentials",
+			"Stored at "+encFilePath,
+			"Keep it safe. Secrets cannot be recovered if forgotten",
+		)
+
+		withPassword, err = console.PromptAndConfirmPassword("Enter master password", "Confirm master password")
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := os.MkdirAll(rootDir, 0700); err != nil {
+		return fmt.Errorf("could not create directory %s", rootDir)
+	}
+
+	if err := os.WriteFile(encFilePath, []byte{}, 0600); err != nil {
+		return fmt.Errorf("could not create store file %s", encFilePath)
+	}
+
+	if err := auth.Store(withPassword); err != nil {
+		return fmt.Errorf("could not store master password")
+	}
+
+	console.Success("Configured successfully")
+	return nil
+}
+
+func migrateSetup(existingPassword string, recovery bool) error {
+	if recovery {
+		var err error
+		existingPassword, err = console.PromptSecret("Enter existing/old password")
+		if err != nil || existingPassword == "" {
+			return fmt.Errorf("password cannot be empty")
+		}
+		if _, err := store.Open(existingPassword); err != nil {
+			return fmt.Errorf("incorrect password")
+		}
+	}
+
+	console.InfoBlock("Change master password",
+		"All existing secrets will be re-encrypted with the new password",
+		"Keep it safe. Secrets cannot be recovered if forgotten",
+	)
+
+	newPassword, err := console.PromptAndConfirmPassword("Enter new master password", "Confirm new master password")
+	if err != nil {
+		return err
+	}
+
+	if err := store.Migrate(existingPassword, newPassword); err != nil {
+		return err
+	}
+
+	if err := auth.Store(newPassword); err != nil {
+		return fmt.Errorf("could not store master password")
+	}
+
+	console.Success("Re-configured successfully")
+	return nil
 }
 
 func init() {

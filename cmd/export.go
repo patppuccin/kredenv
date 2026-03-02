@@ -46,7 +46,7 @@ var exportCmd = &cobra.Command{
 		if !slices.Contains(supportedExportFormats, flagExportFormat) {
 			console.ErrorGroup(
 				"Format '"+flagExportFormat+"' is not supported",
-				[]string{"Supported formats: " + strings.Join(supportedExportFormats, ", ")},
+				"Supported formats: "+strings.Join(supportedExportFormats, ", "),
 			)
 			os.Exit(1)
 		}
@@ -70,7 +70,7 @@ var exportCmd = &cobra.Command{
 			for i, err := range errs {
 				errMsgs[i] = err.Error()
 			}
-			console.ErrorGroup("Failed to collect secrets", errMsgs)
+			console.ErrorGroup("Failed to collect secrets", errMsgs...)
 			os.Exit(1)
 		}
 
@@ -185,10 +185,8 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 		if _, conflict := grouped["_default"]; conflict {
 			console.ErrorGroup(
 				"Unable to export namespace '_default'",
-				[]string{
-					"The namespace '_default' conflicts with flat keys",
-					"Rename your namespace to prevent namespace collisions",
-				},
+				"The namespace '_default' conflicts with flat keys",
+				"Rename your namespace to prevent namespace collisions",
 			)
 			os.Exit(1)
 		}

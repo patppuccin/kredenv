@@ -34,6 +34,10 @@ func Store(password string) error {
 	return storeInFile(password)
 }
 
+func Delete() error {
+	return keyring.Delete(consts.AppName, consts.KeyringKey)
+}
+
 func retrieveFromFile() (string, error) {
 	rootDir, err := helpers.GetRootDir()
 	if err != nil {

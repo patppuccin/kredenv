@@ -46,7 +46,7 @@ var loadCmd = &cobra.Command{
 			title += " (namespace: " + flagLoadNamespace + ")"
 		}
 
-		console.InfoGroup(title, keys)
+		console.InfoGroup(title, keys...)
 	},
 }
 

@@ -121,6 +121,18 @@ func (s *Store) Close() error {
 	return nil
 }
 
+func Exists() bool {
+	rootDir, err := helpers.GetRootDir()
+	if err != nil {
+		return false
+	}
+
+	encFilePath := filepath.Join(rootDir, consts.EncFileName)
+
+	info, err := os.Stat(encFilePath)
+	return err == nil && !info.IsDir()
+}
+
 func Migrate(oldPassword, newPassword string) error {
 	s, err := Open(oldPassword)
 	if err != nil {

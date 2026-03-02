@@ -20,13 +20,13 @@ func PromptSecret(prompt string) (string, error) {
 	return string(pwd), nil
 }
 
-func PromptConfirm(prompt string) (bool, error) {
+func PromptConfirm(prompt string) bool {
 	fmt.Printf("%s %s [y/N]: ", fmtPrompt("(?)"), prompt)
 	var response string
 	if _, err := fmt.Scanln(&response); err != nil {
-		return false, err
+		return false
 	}
-	return response == "y" || response == "Y", nil
+	return response == "y" || response == "Y"
 }
 
 func PromptAndConfirmPassword(prompt, confirmPrompt string) (string, error) {

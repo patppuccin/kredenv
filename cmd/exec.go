@@ -52,7 +52,7 @@ var execCmd = &cobra.Command{
 			for i, e := range errs {
 				errMsgs[i] = e.Error()
 			}
-			console.ErrorGroup("Failed to parse .kredsfile", errMsgs)
+			console.ErrorGroup("Failed to parse .kredsfile", errMsgs...)
 			os.Exit(1)
 		}
 
@@ -99,7 +99,7 @@ var execCmd = &cobra.Command{
 		}
 
 		if len(missingRequired) > 0 {
-			console.ErrorGroup("Missing required secrets", missingRequired)
+			console.ErrorGroup("Missing required secrets", missingRequired...)
 			os.Exit(1)
 		}
 

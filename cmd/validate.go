@@ -51,7 +51,7 @@ var validateCmd = &cobra.Command{
 			for i, err := range errs {
 				errMsgs[i] = err.Error()
 			}
-			console.ErrorGroup("Failed to parse .kredsfile", errMsgs)
+			console.ErrorGroup("Failed to parse .kredsfile", errMsgs...)
 			os.Exit(1)
 		}
 

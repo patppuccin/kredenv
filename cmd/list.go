@@ -69,15 +69,11 @@ func listFromKredsfile(s *store.Store, ns string) {
 
 	kf, errs := spec.Parse(path)
 	if len(errs) > 0 {
-		if len(errs) == 1 {
-			console.Error(errs[0].Error())
-			os.Exit(1)
-		}
 		errMsgs := make([]string, len(errs))
 		for i, e := range errs {
 			errMsgs[i] = e.Error()
 		}
-		console.ErrorGroup("Failed to parse "+path, errMsgs)
+		console.ErrorGroup("Failed to parse "+path, errMsgs...)
 		os.Exit(1)
 	}
 
@@ -108,10 +104,10 @@ func listFromKredsfile(s *store.Store, ns string) {
 	}
 
 	if len(lookupHits) > 0 {
-		console.InfoGroup("The following keys were found", lookupHits)
+		console.InfoGroup("The following keys were found", lookupHits...)
 	}
 	if len(lookupMisses) > 0 {
-		console.WarnGroup("The following keys were not found", lookupMisses)
+		console.WarnGroup("The following keys were not found", lookupMisses...)
 	}
 }
 
@@ -143,7 +139,7 @@ func listFromStore(s *store.Store, ns string) {
 		return
 	}
 
-	console.InfoGroup("Store secrets", msgs)
+	console.InfoGroup("Store secrets", msgs...)
 }
 
 func init() {
