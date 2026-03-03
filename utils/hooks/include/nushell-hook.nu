@@ -21,7 +21,7 @@ def --env _kredenv_load [secrets: record] {
     $env.KREDENV_LOADED_COUNT = ($secrets | columns | length | into string)
 }
 
-# Initialize PWD hook — idempotent, safe to source multiple times
+# Initialization hook (safe to source multiple times)
 export-env {
     $env.__KREDENV_BIN = (which ^kredenv | where type == "external" | get path.0)
 
@@ -52,7 +52,7 @@ export-env {
     }
 }
 
-# Public interceptor — shadows the kredenv binary
+# Public interceptor (shadows the kredenv binary)
 def --env --wrapped kredenv [...args: string] {
     if ($args | is-empty) {
         nu -c $"($env.__KREDENV_BIN)"

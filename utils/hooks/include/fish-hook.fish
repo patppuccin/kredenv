@@ -32,14 +32,18 @@ end
 function __kredenv_hook --on-variable PWD
     __kredenv_unload
     set -l secrets (command kredenv inject --format dotenv 2>/dev/null)
-    if test -n "$secrets"
+    if test -n $secrets
         __kredenv_load $secrets
     end
 end
 
-# Public interceptor — shadows the kredenv binary
+# Initialize binary path (safe to source multiple times)
+if not set -q __KREDENV_BIN
+    set -gx __KREDENV_BIN (command -v kredenv)
+end
+
+# Public interceptor (shadows the kredenv binary)
 function kredenv
-    # passthrough help flags
     if contains -- --help $argv; or contains -- -h $argv
         command kredenv $argv
         return
@@ -59,7 +63,7 @@ function kredenv
                 set i (math $i + 1)
             end
             set -l secrets (command kredenv inject --format dotenv $ns_flags 2>/dev/null)
-            if test -n "$secrets"
+            if test -n $secrets
                 __kredenv_load $secrets
             end
             command kredenv $argv
@@ -67,7 +71,7 @@ function kredenv
             __kredenv_unload
             command kredenv unload
         case inject
-            echo "kredenv inject is for internal use only" >&2
+            printf '%s\n' "kredenv inject is for internal use only" >&2
             return 1
         case '*'
             command kredenv $argv

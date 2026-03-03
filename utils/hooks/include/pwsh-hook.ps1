@@ -3,7 +3,7 @@
 # Initialize by adding following command to $PROFILE:
 # Invoke-Expression (& { (kredenv hook powershell | Out-String) })
 
-# Unload Secrets tracked in KREDENV_LOADED_VARS
+# Unload secrets tracked in KREDENV_LOADED_VARS
 function global:_KredenvUnload {
     if ($null -ne $env:KREDENV_LOADED_VARS) {
         foreach ($Key in ($env:KREDENV_LOADED_VARS -split ",")) {
@@ -14,7 +14,7 @@ function global:_KredenvUnload {
     }
 }
 
-# Load Secrets from inject output
+# Load secrets from inject output
 function global:_KredenvLoad {
     param([hashtable]$Secrets)
     foreach ($Entry in $Secrets.GetEnumerator()) {
@@ -38,7 +38,7 @@ function global:_KredenvHook {
     }
 }
 
-# Initialize hook — idempotent, safe to source multiple times
+# Initialization hook (safe to source multiple times)
 $global:_KredenvHooked = (Get-Variable _KredenvHooked -ErrorAction Ignore -ValueOnly)
 if ($global:_KredenvHooked -ne 1) {
     $global:_KredenvHooked = 1
@@ -55,7 +55,7 @@ if ($global:_KredenvHooked -ne 1) {
     }
 }
 
-# Public interceptor — shadows the kredenv binary
+# Public interceptor (shadows the kredenv binary)
 function global:kredenv {
     if ($args -contains "--help" -or $args -contains "-h") {
         & $env:__KREDENV_BIN @args

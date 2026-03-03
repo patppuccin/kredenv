@@ -49,15 +49,15 @@ __kredenv_hook() {
     return "${retval}"
 }
 
-# Initialize hook — idempotent, safe to source multiple times
+# Initialize binary path and PWD tracking (safe to source multiple times)
 __kredenv_oldpwd="$(builtin pwd -P)"
 if [[ "${PROMPT_COMMAND:-}" != *'__kredenv_hook'* ]]; then
     PROMPT_COMMAND="__kredenv_hook;${PROMPT_COMMAND#;}"
 fi
+export __KREDENV_BIN="$(builtin command -v kredenv)"
 
-# Public interceptor — shadows the kredenv binary
+# Public interceptor (shadows the kredenv binary)
 kredenv() {
-    # passthrough help flags
     for arg in "$@"; do
         if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
             command kredenv "$@"
@@ -69,7 +69,7 @@ kredenv() {
         load)
             __kredenv_unload
             local ns_flags=()
-            local i=1
+            local i=2
             while [[ $i -le $# ]]; do
                 local arg="${!i}"
                 if [[ "$arg" == "--namespace" || "$arg" == "-n" ]]; then

@@ -31,7 +31,7 @@ __kredenv_load() {
     export KREDENV_LOADED_COUNT="$count"
 }
 
-# Hook to detect directory change
+# Hook to reload secrets on directory change
 __kredenv_hook() {
     __kredenv_unload
     local secrets
@@ -41,14 +41,14 @@ __kredenv_hook() {
     fi
 }
 
-# Initialize hook — idempotent, safe to source multiple times
+# Initialize binary path and register chpwd hook (safe to source multiple times)
 \builtin typeset -ga chpwd_functions
 chpwd_functions=("${(@)chpwd_functions:#__kredenv_hook}")
 chpwd_functions+=(__kredenv_hook)
+export __KREDENV_BIN="$(\builtin whence -p kredenv)"
 
-# Public interceptor — shadows the kredenv binary
+# Public interceptor (shadows the kredenv binary)
 kredenv() {
-    # passthrough help flags
     for arg in "$@"; do
         if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
             \command kredenv "$@"
