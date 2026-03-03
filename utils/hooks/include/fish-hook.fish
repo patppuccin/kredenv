@@ -32,7 +32,7 @@ end
 function __kredenv_hook --on-variable PWD
     __kredenv_unload
     set -l secrets (command kredenv inject --format dotenv 2>/dev/null)
-    if test -n $secrets
+    if test -n "$secrets"
         __kredenv_load $secrets
     end
 end
@@ -63,7 +63,7 @@ function kredenv
                 set i (math $i + 1)
             end
             set -l secrets (command kredenv inject --format dotenv $ns_flags 2>/dev/null)
-            if test -n $secrets
+            if test -n "$secrets"
                 __kredenv_load $secrets
             end
             command kredenv $argv

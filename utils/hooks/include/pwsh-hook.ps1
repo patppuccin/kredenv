@@ -45,7 +45,7 @@ if ($global:_KredenvHooked -ne 1) {
     $global:_KredenvOldPwd = (Get-Location).ProviderPath
     $global:_KredenvOldPrompt = $function:Prompt
 
-    $env:__KREDENV_BIN = (Get-Command -CommandType Application kredenv).Source
+    $env:__KREDENV_BIN = (Get-Command -CommandType Application kredenv | Select-Object -First 1).Source
 
     function global:Prompt {
         $null = _KredenvHook

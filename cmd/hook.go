@@ -38,7 +38,8 @@ var hookCmd = &cobra.Command{
 			console.Info("Supported shells are " + hooks.Names())
 			os.Exit(1)
 		}
-		fmt.Println(sh.Hook)
+		// fmt.Println(sh.Hook)
+		fmt.Print(strings.ReplaceAll(sh.Hook, "\r\n", "\n"))
 	},
 }
 
