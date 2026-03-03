@@ -15,17 +15,10 @@ def --env _kredenv_unload [] {
 }
 
 # Load secrets from inject output
-def --env _kredenv_load [secrets: list<string>] {
-    let pairs = $secrets | reduce --fold {} {|line, acc|
-        let stripped = $line | str replace "export " ""
-        let parts    = $stripped | split row "=" | collect
-        let key      = $parts | first
-        let value    = $parts | last | str trim -c '"'
-        $acc | insert $key $value
-    }
-    load-env $pairs
-    $env.KREDENV_LOADED_VARS = ($pairs | columns | str join ",")
-    $env.KREDENV_LOADED_COUNT = ($pairs | columns | length | into string)
+def --env _kredenv_load [secrets: record] {
+    load-env $secrets
+    $env.KREDENV_LOADED_VARS = ($secrets | columns | str join ",")
+    $env.KREDENV_LOADED_COUNT = ($secrets | columns | length | into string)
 }
 
 # Initialize PWD hook — idempotent, safe to source multiple times
@@ -49,8 +42,11 @@ export-env {
             __kredenv_hook: true,
             code: { | _, _dir |
                 _kredenv_unload
-                let secrets = (nu -c $"($env.__KREDENV_BIN) inject" | lines)
-                if ($secrets | is-not-empty) { _kredenv_load $secrets }
+                let raw = (nu -c $"($env.__KREDENV_BIN) inject --format json")
+                if ($raw | is-not-empty) {
+                    let secrets = ($raw | from json)
+                    if (($secrets | columns | length) > 0) { _kredenv_load $secrets }
+                }
             }
         })
     }
@@ -81,10 +77,11 @@ def --env --wrapped kredenv [...args: string] {
             } else {
                 ""
             }
-            let secrets = (nu -c $"($env.__KREDENV_BIN) inject($ns_flag)" | lines)
-            if ($secrets | is-not-empty) { _kredenv_load $secrets }
-            let args_str = ($args | str join " ")
-            nu -c $"($env.__KREDENV_BIN) ($args_str)"
+            let raw = (nu -c $"($env.__KREDENV_BIN) inject --format json($ns_flag)")
+            if ($raw | is-not-empty) {
+                let secrets = ($raw | from json)
+                if (($secrets | columns | length) > 0) { _kredenv_load $secrets }
+            }
         }
         "unload" => {
             _kredenv_unload

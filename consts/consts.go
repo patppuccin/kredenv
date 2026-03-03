@@ -14,3 +14,6 @@ const AuthEnvVar = "KREDENTIAL"
 const AuthMasterFile = ".kredmaster"
 const KeyringKey = "kredkey"
 const EncFileName = ".kreds.enc"
+
+var SupportedExportFormats = []string{"env", "json", "yaml", "toml"}
+var SupportedInjectFormats = []string{"dotenv", "json"}

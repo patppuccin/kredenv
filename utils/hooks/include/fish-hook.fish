@@ -18,10 +18,9 @@ end
 function __kredenv_load
     set -l keys
     for line in $argv
-        set -l stripped (string replace 'export ' '' $line)
-        set -l parts (string split --max 1 '=' $stripped)
+        set -l parts (string split --max 1 '=' $line)
         set -l key $parts[1]
-        set -l value (string trim --chars='"' $parts[2])
+        set -l value $parts[2]
         set -gx $key $value
         set -a keys $key
     end
@@ -32,7 +31,7 @@ end
 # Hook to detect directory change
 function __kredenv_hook --on-variable PWD
     __kredenv_unload
-    set -l secrets (command kredenv inject 2>/dev/null)
+    set -l secrets (command kredenv inject --format dotenv 2>/dev/null)
     if test -n "$secrets"
         __kredenv_load $secrets
     end
@@ -59,7 +58,7 @@ function kredenv
                 end
                 set i (math $i + 1)
             end
-            set -l secrets (command kredenv inject $ns_flags 2>/dev/null)
+            set -l secrets (command kredenv inject --format dotenv $ns_flags 2>/dev/null)
             if test -n "$secrets"
                 __kredenv_load $secrets
             end

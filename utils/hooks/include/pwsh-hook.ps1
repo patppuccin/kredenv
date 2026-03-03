@@ -16,21 +16,12 @@ function global:_KredenvUnload {
 
 # Load Secrets from inject output
 function global:_KredenvLoad {
-    param([string[]]$Secrets)
-    $Keys = @()
-    foreach ($Line in $Secrets) {
-        $Stripped = $Line -replace '^export ', ''
-        $Eq = $Stripped.IndexOf('=')
-        if ($Eq -lt 0) { continue }
-
-        $Key = $Stripped.Substring(0, $Eq)
-        $Value = $Stripped.Substring($Eq + 1).Trim('"')
-
-        Set-Item -Path "Env:$Key" -Value $Value
-        $Keys += $Key
+    param([hashtable]$Secrets)
+    foreach ($Entry in $Secrets.GetEnumerator()) {
+        Set-Item -Path "Env:$($Entry.Key)" -Value $Entry.Value
     }
-    $env:KREDENV_LOADED_VARS = $Keys -join ","
-    $env:KREDENV_LOADED_COUNT = $Keys.Length
+    $env:KREDENV_LOADED_VARS = ($Secrets.Keys -join ",")
+    $env:KREDENV_LOADED_COUNT = $Secrets.Count
 }
 
 # Hook to detect directory change
@@ -39,8 +30,11 @@ function global:_KredenvHook {
     if ($Result -ne $global:_KredenvOldPwd) {
         $global:_KredenvOldPwd = $Result
         _KredenvUnload
-        $Secrets = & $env:__KREDENV_BIN inject 2>$null
-        if ($Secrets) { _KredenvLoad $Secrets }
+        $Raw = & $env:__KREDENV_BIN inject --format json 2>$null
+        if ($Raw) {
+            $Secrets = $Raw | ConvertFrom-Json -AsHashtable
+            if ($Secrets.Count -gt 0) { _KredenvLoad $Secrets }
+        }
     }
 }
 
@@ -54,10 +48,10 @@ if ($global:_KredenvHooked -ne 1) {
     $env:__KREDENV_BIN = (Get-Command -CommandType Application kredenv).Source
 
     function global:Prompt {
+        $null = _KredenvHook
         if ($null -ne $global:_KredenvOldPrompt) {
             & $global:_KredenvOldPrompt
         }
-        $null = _KredenvHook
     }
 }
 
@@ -79,8 +73,11 @@ function global:kredenv {
             elseif ($NSShortIdx -ge 0 -and $NSShortIdx + 1 -lt $args.Length) {
                 $NSFlags = @("--namespace", $args[$NSShortIdx + 1])
             }
-            $Secrets = & $env:__KREDENV_BIN inject @NSFlags 2>$null
-            if ($Secrets) { _KredenvLoad $Secrets }
+            $Raw = & $env:__KREDENV_BIN inject --format json @NSFlags 2>$null
+            if ($Raw) {
+                $Secrets = $Raw | ConvertFrom-Json -AsHashtable
+                if ($Secrets.Count -gt 0) { _KredenvLoad $Secrets }
+            }
             & $env:__KREDENV_BIN @args
         }
         "unload" {

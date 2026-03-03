@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/mattn/go-isatty"
+	"github.com/patppuccin/kredenv/consts"
 	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/spec"
@@ -17,6 +20,7 @@ const helpInjectCmd = "Emits export statements for the shell hook (internal use)
 
 var (
 	flagInjectNamespace string
+	flagInjectFormat    string
 )
 
 var injectCmd = &cobra.Command{
@@ -30,6 +34,10 @@ var injectCmd = &cobra.Command{
 		if isatty.IsTerminal(os.Stdout.Fd()) {
 			console.Error("inject is for shell hook use only, use `kredenv load` instead")
 			return
+		}
+
+		if !slices.Contains(consts.SupportedInjectFormats, flagInjectFormat) {
+			return // silent exit - don't break shell hook
 		}
 
 		path, err := spec.Locate()
@@ -62,6 +70,8 @@ var injectCmd = &cobra.Command{
 			ns = flagInjectNamespace
 		}
 
+		resolved := map[string]string{}
+
 		for _, secret := range kf.Secrets {
 			if ns != "" {
 				if !strings.HasPrefix(secret.Key, ns+":") {
@@ -77,7 +87,17 @@ var injectCmd = &cobra.Command{
 			if err != nil {
 				continue
 			}
-			fmt.Printf("export %s=%q\n", secret.Alias, value)
+			resolved[secret.Alias] = value
+		}
+
+		switch flagInjectFormat {
+		case "dotenv":
+			for k, v := range resolved {
+				fmt.Printf("%s=%s\n", k, v)
+			}
+		case "json":
+			data, _ := json.Marshal(resolved)
+			fmt.Println(string(data))
 		}
 	},
 }
@@ -85,4 +105,5 @@ var injectCmd = &cobra.Command{
 func init() {
 	injectCmd.Flags().SortFlags = false
 	injectCmd.Flags().StringVar(&flagInjectNamespace, "namespace", "", "Inject keys from a specific namespace")
+	injectCmd.Flags().StringVar(&flagInjectFormat, "format", "dotenv", "Output format ("+strings.Join(consts.SupportedInjectFormats, ", ")+")")
 }

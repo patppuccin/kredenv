@@ -19,11 +19,8 @@ __kredenv_load() {
     local keys=""
     while IFS= read -r line; do
         local key value
-        line="${line#export }"
         key="${line%%=*}"
         value="${line#*=}"
-        value="${value%\"}"
-        value="${value#\"}"
         export "$key=$value"
         keys="${keys:+$keys,}$key"
     done <<< "$1"
@@ -44,7 +41,7 @@ __kredenv_hook() {
         __kredenv_oldpwd="${pwd_tmp}"
         __kredenv_unload
         local secrets
-        secrets="$(command kredenv inject 2>/dev/null)"
+        secrets="$(command kredenv inject --format dotenv 2>/dev/null)"
         if [[ -n "$secrets" ]]; then
             __kredenv_load "$secrets"
         fi
@@ -83,7 +80,7 @@ kredenv() {
                 ((i++))
             done
             local secrets
-            secrets="$(command kredenv inject "${ns_flags[@]}" 2>/dev/null)"
+            secrets="$(command kredenv inject --format dotenv "${ns_flags[@]}" 2>/dev/null)"
             if [[ -n "$secrets" ]]; then
                 __kredenv_load "$secrets"
             fi

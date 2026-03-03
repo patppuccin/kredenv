@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/patppuccin/kredenv/consts"
 	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/helpers"
@@ -19,8 +20,6 @@ import (
 )
 
 const helpExportCmd = "Export secrets from the secrets store to stdout or a file"
-
-var supportedExportFormats = []string{"env", "json", "yaml", "toml"}
 
 var (
 	flagExportAll        bool
@@ -43,10 +42,10 @@ var exportCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if !slices.Contains(supportedExportFormats, flagExportFormat) {
+		if !slices.Contains(consts.SupportedExportFormats, flagExportFormat) {
 			console.ErrorGroup(
 				"Format '"+flagExportFormat+"' is not supported",
-				"Supported formats: "+strings.Join(supportedExportFormats, ", "),
+				"Supported formats: "+strings.Join(consts.SupportedExportFormats, ", "),
 			)
 			os.Exit(1)
 		}
