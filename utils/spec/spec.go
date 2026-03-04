@@ -44,7 +44,7 @@ func Locate() (string, error) {
 		return "", fmt.Errorf("could not determine current directory: %w", err)
 	}
 
-	start := current
+	levelsUp := 0
 
 	for {
 		candidate := filepath.Join(current, ".kredsfile")
@@ -55,13 +55,14 @@ func Locate() (string, error) {
 				return "", err
 			}
 
-			rel, err := filepath.Rel(current, start)
-			if err != nil {
-				return "", fmt.Errorf("could not calculate relative path: %w", err)
+			if recurseDepth == 0 {
+				if levelsUp == 0 {
+					return candidate, nil
+				}
+				return "", nil
 			}
-			levelsDeep := len(strings.Split(rel, string(filepath.Separator))) - 1
 
-			if recurseDepth == 0 || levelsDeep <= recurseDepth {
+			if levelsUp <= recurseDepth {
 				return candidate, nil
 			}
 
@@ -76,6 +77,7 @@ func Locate() (string, error) {
 		}
 
 		current = parent
+		levelsUp++
 	}
 }
 
