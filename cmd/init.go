@@ -66,12 +66,12 @@ var initCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
-				console.Error("Could not write .kredsfile")
+				console.Error("Could not write manifest template to " + target)
 				os.Exit(1)
 			}
-			console.Success("Initialized at " + target)
+			console.Success("Initialized kredsfile manifest at " + target)
 		} else {
-			console.Info("Using existing .kredsfile at " + target)
+			console.Info("Using existing manifest at " + target)
 		}
 
 		if flagInitNoSetup {
@@ -84,11 +84,17 @@ var initCmd = &cobra.Command{
 
 		kf, errs := spec.Parse(target)
 		if len(errs) > 0 {
-			return
+			errMsgs := make([]string, len(errs))
+			for i, e := range errs {
+				errMsgs[i] = e.Error()
+			}
+			console.ErrorGroup("Failed to parse "+target, errMsgs...)
+			os.Exit(1)
 		}
 
 		if len(kf.Secrets) == 0 {
 			console.Warn("No secrets found in .kredsfile")
+			return
 		}
 
 		password, err := auth.Retrieve()
@@ -99,7 +105,7 @@ var initCmd = &cobra.Command{
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Warn("Could not open store")
+			console.Warn("Could not open the secrets store")
 			return
 		}
 		defer s.Close()
