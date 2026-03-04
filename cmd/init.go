@@ -33,15 +33,15 @@ var initCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		target := flagInitFile
 
-		if !filepath.IsAbs(target) {
-			cwd, err := os.Getwd()
-			if err != nil {
-				console.Error("Could not determine current directory")
-				os.Exit(1)
-			}
-			target = filepath.Join(cwd, target)
+		if flagInitFile == "" {
+			flagInitFile = ".kredsfile"
+		}
+
+		target, err := filepath.Abs(flagInitFile)
+		if err != nil {
+			console.Error("Could not resolve " + flagInitFile + ": " + err.Error())
+			os.Exit(1)
 		}
 
 		if !strings.HasSuffix(filepath.Base(target), ".kredsfile") {
