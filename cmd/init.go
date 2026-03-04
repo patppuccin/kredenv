@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mattn/go-isatty"
+	"github.com/patppuccin/kredenv/consts"
 	"github.com/patppuccin/kredenv/utils/auth"
 	"github.com/patppuccin/kredenv/utils/console"
 	"github.com/patppuccin/kredenv/utils/spec"
@@ -47,40 +49,51 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if _, err := os.Stat(target); err == nil && !flagInitOverwrite {
-			console.Error("File already exists: " + target)
-			os.Exit(1)
+		fileExists := false
+		if _, err := os.Stat(target); err == nil {
+			fileExists = true
 		}
 
-		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-			console.Error("Could not create directories for: " + target)
-			os.Exit(1)
+		if fileExists && flagInitOverwrite {
+			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
+				console.Error("Could not overwrite .kredsfile")
+				os.Exit(1)
+			}
+			console.Success("Overwritten at " + target)
+		} else if !fileExists {
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				console.Error("Could not create directories for: " + target)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
+				console.Error("Could not write .kredsfile")
+				os.Exit(1)
+			}
+			console.Success("Initialized at " + target)
+		} else {
+			console.Info("Using existing .kredsfile at " + target)
 		}
 
-		if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
-			console.Error("Could not write .kredsfile")
-			os.Exit(1)
+		if flagInitNoSetup {
+			return
 		}
 
-		console.Success("Initialized at " + target)
-
-		// skip interactive setup if not a terminal or --no-setup
-		if flagInitNoSetup || !isatty.IsTerminal(os.Stdin.Fd()) {
+		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			return
 		}
 
 		kf, errs := spec.Parse(target)
 		if len(errs) > 0 {
-			return // minimal template may have no secrets yet, that's fine
+			return
 		}
 
 		if len(kf.Secrets) == 0 {
-			return
+			console.Warn("No secrets found in .kredsfile")
 		}
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Warn("Could not open store — run `kredenv config` first to set up")
+			console.Warn("Could not open store: run '" + consts.AppName + " setup' first to set up")
 			return
 		}
 
@@ -118,7 +131,12 @@ var initCmd = &cobra.Command{
 				continue
 			}
 
-			value, err := console.PromptSecret("\nEnter value for " + secret.Key)
+			label := secret.Key
+			if secret.Optional {
+				label += " (optional)"
+			}
+
+			value, err := console.PromptSecret("Enter value for " + label)
 			if err != nil {
 				console.Error("Could not read input")
 				os.Exit(1)
@@ -142,19 +160,25 @@ var initCmd = &cobra.Command{
 			return
 		}
 
-		joinOrNone := func(s []string) string {
-			if len(s) == 0 {
-				return "none"
+		fmtSetupGroup := func(keys []string, label string) string {
+			count := len(keys)
+			noun := "secrets"
+			if count == 1 {
+				noun = "secret"
 			}
-			return strings.Join(s, ", ")
+			if count == 0 {
+				return fmt.Sprintf("%s 0 secrets", label)
+			}
+			return fmt.Sprintf("%s %d %s: %s", label, count, noun, strings.Join(keys, ", "))
 		}
 
 		console.InfoGroup(
 			"Setup complete"+nsLabel,
-			"Stored      : "+joinOrNone(stored),
-			"Skipped     : "+joinOrNone(skipped),
-			"Already set : "+joinOrNone(alreadySet),
+			fmtSetupGroup(stored, "Stored"),
+			fmtSetupGroup(skipped, "Skipped"),
+			fmtSetupGroup(alreadySet, "Already set"),
 		)
+
 	},
 }
 
