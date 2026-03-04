@@ -4,7 +4,153 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/patppuccin/kredenv)](https://goreportcard.com/report/github.com/patppuccin/kredenv)
 [![License](https://img.shields.io/github/license/patppuccin/kredenv)](LICENSE)
 
-Inject secrets and environment variables from a locally encrypted vault into your shell session. No plaintext files. No accidental commits. No secrets leakage.
+Inject secrets and environment variables from a locally encrypted vault into your shell session.  
+No plaintext files. No accidental commits. No secret leaks.
+
+## Up and running
+
+### Installation
+
+`kredenv` is distributed as a single standalone binary and runs on **Linux, macOS, and Windows**.
+No runtime dependencies. No package managers required.
+
+You can install it using the convenience installer or by downloading a prebuilt release.
+
+#### Convenience Script (Recommended)
+
+The install script detects your platform and architecture, downloads the **latest release**, and installs the binary into your system `PATH`.
+
+**Linux & macOS**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.sh)
+```
+
+**Windows (PowerShell 5.1+)**
+
+```powershell
+powershell -ExecutionPolicy Bypass -NoProfile -c "irm https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.ps1 | iex"
+```
+
+#### Install via Prebuilt Binary
+
+You can also install `kredenv` manually.
+
+1. Download the appropriate binary for your **OS and architecture** from the
+   [GitHub Releases](https://github.com/patppuccin/kredenv/releases) page.
+2. Extract the archive.
+3. Move the binary to a directory in your `PATH`.
+
+Example (Linux / macOS):
+
+```bash
+chmod +x kredenv
+sudo mv kredenv /usr/local/bin/
+```
+
+Example (Windows):
+
+Move `kredenv.exe` to a directory already included in your `PATH`.
+
+
+> [!TIP]
+> Run the following command to confirm the installation:
+> ```bash
+> kredenv --version
+> ```
+> If the command prints the version, the installation succeeded.
+
+### Setting up Shell Integration
+
+`kredenv` integrates with your shell to automatically **load and unload environment secrets when you enter or leave project directories**.
+
+**Supported shells:**
+
+* Bash
+* Zsh
+* Fish
+* PowerShell
+* Nushell
+
+Add the appropriate hook to your shell configuration file, then restart your shell session.
+
+#### Bash
+
+```sh
+echo 'eval "$(kredenv hook bash)"' >> ~/.bashrc
+```
+
+#### Zsh
+
+```sh
+echo 'eval "$(kredenv hook zsh)"' >> ~/.zshrc
+```
+
+#### Fish
+
+```sh
+echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish
+```
+
+#### PowerShell
+
+```powershell
+Add-Content $PROFILE 'Invoke-Expression (& { (kredenv hook powershell | Out-String) })'
+```
+
+#### Nushell
+
+> [!NOTE]
+> Nushell loads the hook from a saved script. After upgrading `kredenv`, run the command below again to regenerate the hook.
+
+```sh
+kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
+```
+
+### Setting up the kredenv Vault
+
+`kredenv` stores secrets in a **locally encrypted vault**.
+
+During setup you create a **master password** used to encrypt and decrypt the vault. The password is stored securely on the machine and reused automatically, so you are not prompted on every command.
+
+Setup is typically performed **once per machine**.
+
+```sh
+# Initialize kredenv on this machine
+kredenv setup
+```
+
+The command will:
+
+* Prompt you to create a master password
+* Create the encrypted vault
+* Store the password securely on the machine
+
+#### Recover Local Credentials
+
+If the vault exists but the locally stored password is missing, you can restore the configuration without deleting secrets.
+
+```sh
+kredenv setup --overwrite
+```
+
+You will be prompted for the **existing master password** and then asked to set a **new one**. All secrets are re-encrypted using the new password.
+
+#### Start Fresh
+
+To delete all configuration and secrets and start from scratch:
+
+```sh
+kredenv setup --nuke
+```
+
+This removes:
+
+* The encrypted vault
+* All stored credentials
+* Local kredenv configuration
+
+You will be prompted for confirmation before deletion.
 
 ## How it works
 
@@ -21,63 +167,6 @@ When you `cd` into a directory containing a `.kredsfile`, kredenv:
 When you leave the directory or project scope, the variables are unloaded. Secrets are never written to disk in plaintext. They never leave your machine unless you explicitly export them.
 
 Each developer maintains their own encrypted vault. There is no shared secrets file, no `.env` to `.gitignore`, and no risk of committing credentials. The `.kredsfile` must be committed so collaborators know which secrets are required and can populate their own vault securely.
-
-## Installation
-
-**Convenience script (recommended):**
-
-_Linux & macOS:_
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.sh)
-```
-
-_Windows (PowerShell 5.1+):_
-
-```powershell
-powershell -ExecutionPolicy Bypass -NoProfile -c "irm https://raw.githubusercontent.com/patppuccin/kredenv/main/scripts/install.ps1 | iex"
-```
-The script downloads the latest release and installs it into your PATH.
-
-**Via prebuilt binary:**
-
-Download the appropriate binary for your platform and architecture from the [releases page](https://github.com/patppuccin/kredenv/releases).
-
-## Setup
-
-kredenv uses a shell hook to automatically load and unload secrets as you move between directories.
-
-Add the appropriate hook to your shell configuration and restart your session.
-
-**Bash**
-
-```sh
-echo 'eval "$(kredenv hook bash)"' >> ~/.bashrc
-```
-
-Zsh
-
-```sh
-echo 'eval "$(kredenv hook zsh)"' >> ~/.zshrc
-```
-
-Fish
-
-```sh
-echo 'kredenv hook fish | source' >> $__fish_config_dir/config.fish
-```
-
-PowerShell
-
-```powershell
-Add-Content $PROFILE 'Invoke-Expression (& { (kredenv hook powershell | Out-String) })'
-```
-
-Nushell
-
-```sh
-kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
-```
 
 ## The `.kredsfile`
 
@@ -233,6 +322,10 @@ kredenv exec -- terraform apply
 kredenv exec -- npm run dev
 kredenv exec -n staging -- rails db:migrate
 ```
+
+## Integrations
+
+### Prompt
 
 ## Caveats
 
