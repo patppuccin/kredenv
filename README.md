@@ -7,6 +7,72 @@
 Inject secrets and environment variables from a locally encrypted vault into your shell session.  
 No plaintext files. No accidental commits. No secret leaks.
 
+## Quick Start
+
+Get `kredenv` running in under a minute.
+
+### 1. Initialize your vault
+
+```sh
+kredenv setup
+```
+
+This walks you through creating a master password and setting up your encrypted vault.
+
+### 2. Initialize a project
+
+Inside your project directory:
+
+```sh
+kredenv init
+```
+
+This creates a `.kredsfile` that defines which secrets the project expects.
+
+### 3. Store a secret
+
+```sh
+kredenv set API_KEY
+```
+
+You will be prompted to enter the secret value, which is stored in your encrypted vault.
+
+Add the secret to your `.kredsfile`:
+
+```txt
+# .kredsfile
+needs API_KEY
+```
+
+### 4. Use the secret
+
+Once a `.kredsfile` is in scope, `kredenv` automatically injects secrets into your shell environment.
+
+```sh
+echo $API_KEY
+```
+
+If the secret was just created and the directory has not changed, you can manually load the secret:
+
+```sh
+kredenv load
+```
+
+Applications running in that directory can now read the variable as a normal environment variable.
+
+### 5. Run commands with secrets
+
+You can also run commands without loading secrets into your interactive shell:
+
+```sh
+kredenv exec -- npm run dev
+kredenv exec -- terraform apply
+```
+
+Secrets are injected only for the lifetime of the executed command.
+
+---
+
 ## Up and running
 
 ### Installation
@@ -50,8 +116,7 @@ sudo mv kredenv /usr/local/bin/
 
 Example (Windows):
 
-Move `kredenv.exe` to a directory already included in your `PATH`.
-
+Move `kredenv.exe` to a directory included in your `PATH`.
 
 > [!TIP]
 > Run the following command to confirm the installation:
@@ -62,7 +127,7 @@ Move `kredenv.exe` to a directory already included in your `PATH`.
 
 ### Setting up Shell Integration
 
-`kredenv` integrates with your shell to automatically **load and unload environment secrets when you enter or leave project directories**.
+`kredenv` installs a shell hook that watches for directory changes and loads or unloads secrets based on the `.kredsfile` currently in scope.
 
 **Supported shells:**
 
@@ -152,128 +217,194 @@ This removes:
 
 You will be prompted for confirmation before deletion.
 
-## How it works
+### Usage
 
-*kredenv* reads a `.kredsfile` in your project directory and maps each entry to a secret stored in your locally encrypted vault.
+`kredenv` provides a small set of commands grouped by purpose.  
+Use the `-h` or `--help` flag at any level to see available commands and flags.
 
-When you run `kredenv setup`, you create a master password. That password derives a 256-bit key using Argon2 and decrypts the vault using AES-256-GCM.
+**For example:**
 
-When you `cd` into a directory containing a `.kredsfile`, kredenv:
-
-- Decrypts the vault in memory
-- Resolves required secrets
-- Injects them into your shell session
-
-When you leave the directory or project scope, the variables are unloaded. Secrets are never written to disk in plaintext. They never leave your machine unless you explicitly export them.
-
-Each developer maintains their own encrypted vault. There is no shared secrets file, no `.env` to `.gitignore`, and no risk of committing credentials. The `.kredsfile` must be committed so collaborators know which secrets are required and can populate their own vault securely.
-
-## The `.kredsfile`
-
-Place a `.kredsfile` in your project root. kredenv walks up the directory tree to locate the nearest one.
+```sh
+kredenv --help
+kredenv set --help
+kredenv exec --help
+```
+**Primary commands:**
 
 ```txt
-# .kredsfile
-# safe to commit - contains no secrets
-# kredenv errors on missing 'needs', warns on missing 'maybe'
+Setup Commands
+  kredenv setup          : Initialize kredenv on this machine and create the encrypted vault
+  kredenv init           : Initialize a .kredsfile and optionally populate missing secrets
+  kredenv hook <shell>   : Emit the shell integration script for the specified shell
 
-# levels to recurse when looking for .kredsfile
-recurse to 3
+Environment Commands
+  kredenv load           : Load secrets from the .kredsfile in scope into the environment
+  kredenv unload         : Remove kredenv secrets from the current shell session
+  kredenv exec <command> : Execute a command with secrets injected into its environment
+  kredenv which          : Print the path to the .kredsfile currently in scope
+  kredenv validate       : Validate .kredsfile syntax
 
-# autoload controls what gets injected on cd
-autoload on            # load flat keys (default)
-autoload off           # disable autoloading
-autoload for staging   # load only staging namespace keys
+Secrets Commands
+  kredenv set <key>      : Store a secret in the encrypted vault
+  kredenv get <key>      : Retrieve a secret from the encrypted vault
+  kredenv list           : List secrets defined in the .kredsfile or stored in the vault
+  kredenv delete <key>   : Delete one or more secrets from the encrypted vault
+  kredenv export         : Export secrets from the vault to stdout or a file
+  kredenv import <file>  : Import secrets from a file into the encrypted vault
+```
 
-# mandatory secrets
+---
+
+## How kredenv Works
+
+`kredenv` follows a **local‑first secret management model**. Secrets live in an encrypted vault on your machine and are injected into your environment only when required.
+
+### Encrypted Local Vault
+
+Running `kredenv setup` initializes the local vault.
+
+* A master password is created
+* Argon2 derives a 256‑bit encryption key from that password
+* Secrets are encrypted using **AES‑256‑GCM**
+
+The vault is stored locally on your machine. Secret values are never written to disk in plaintext.
+
+### Project Secret Requirements
+
+Each project defines required secrets using a manifest file called a `.kredsfile`. This file contains **only secret names and rules**, never secret values.
+
+Example:
+
+```txt
 needs AWS_ACCESS_KEY_ID
 needs AWS_SECRET_ACCESS_KEY
-
-# optional secrets
 maybe ANALYTICS_ID
-
-# namespaced secrets (must have an alias)
-needs staging:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
-needs staging:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
 ```
 
-To initialize a `.kredsfile` in the current directory:
+The `.kredsfile` is safe to commit to version control. It acts as a contract describing which secrets developers must populate in their local vault.
 
-```sh
-kredenv init
+### Per‑Developer Vault
+
+Each developer maintains their own encrypted vault on their machine.
+
+The repository contains only the `.kredsfile`, which defines which secrets are required. Each developer populates their vault independently.
+
+This design avoids:
+
+* committing secrets to version control
+* distributing plaintext `.env` files
+* sharing credentials across machines
+
+Secrets remain local to each developer while the project still defines what is required.
+
+### Directory Discovery
+
+When inside a project directory, `kredenv` searches for the nearest `.kredsfile` by walking up the directory tree.
+
+The recursion depth can be controlled inside the file:
+
+```txt
+recurse to 3
 ```
 
-To store secrets in the keyring:
+This allows nested project structures while keeping lookup predictable.
 
-```sh
-kredenv set AWS_ACCESS_KEY_ID
-kredenv set AWS_SECRET_ACCESS_KEY super-secret-value
-```
+### Namespaces
 
-To validate your `.kredsfile`:
+Namespaces allow different environments (such as staging or production) to store separate values for the same secret name.
 
-```sh
-kredenv validate
-```
-
-## Namespaces
-
-Namespaces let you manage secrets for multiple environments inside the same encrypted vault without collisions.
+Example:
 
 ```sh
 kredenv set AWS_ACCESS_KEY_ID -n staging
 kredenv set AWS_ACCESS_KEY_ID -n production
-
-# load a specific namespace
-kredenv load -n staging
-
-# run a command with a specific namespace
-kredenv exec -n production -- terraform apply
 ```
 
-In the `.kredsfile`, namespaced keys must declare an alias:
+Inside a `.kredsfile`, namespaced secrets must declare an alias:
 
 ```txt
 needs staging:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs staging:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
+
 needs production:AWS_ACCESS_KEY_ID as AWS_ACCESS_KEY_ID
+needs production:AWS_SECRET_ACCESS_KEY as AWS_SECRET_ACCESS_KEY
 ```
 
-The `autoload for <namespace>` directive controls which namespace gets loaded automatically on `cd`.
+Namespaces allow teams to manage secrets for environments such as:
 
-## Usage
+* staging
+* production
+* development
 
-### Setup
+within the same encrypted vault.
 
-| Command                | Description                                                   |
-| ---------------------- | ------------------------------------------------------------- |
-| `kredenv setup`        | Initialize kredenv on this machine and create the vault       |
-| `kredenv init`         | Initialize a `.kredsfile` and optionally fill missing secrets |
-| `kredenv hook <shell>` | Emit the shell integration script                             |
+### Secret Injection
 
-### Environment
+Whenever your working directory changes, `kredenv` checks whether a `.kredsfile` is in scope and:
 
-| Command              | Description                                                      |
-| -------------------- | ---------------------------------------------------------------- |
-| `kredenv load`       | Load secrets from the `.kredsfile` in scope into the environment |
-| `kredenv unload`     | Unload kredenv secrets from the current session                  |
-| `kredenv exec <cmd>` | Run a command with secrets injected into its environment         |
-| `kredenv which`      | Print the path to the `.kredsfile` in scope                      |
-| `kredenv validate`   | Validate `.kredsfile` syntax                                     |
+1. Locates the `.kredsfile`
+2. Decrypts the vault in memory
+3. Resolves required secrets
+4. Injects them into the shell environment
 
-### Secrets
+Applications then read them as normal environment variables.
 
-| Command                 | Description                                         |
-| ----------------------- | --------------------------------------------------- |
-| `kredenv set <key>`     | Store a secret in the encrypted vault               |
-| `kredenv get <key>`     | Retrieve a secret from the encrypted vault          |
-| `kredenv list`          | List secrets defined in the `.kredsfile` or vault   |
-| `kredenv delete <key>`  | Delete one or more secrets from the encrypted vault |
-| `kredenv export`        | Export secrets to stdout or a file                  |
-| `kredenv import <file>` | Import secrets from a file into the encrypted vault |
+### Automatic Unloading
+
+When leaving the project scope, `kredenv` unloads the injected variables from the shell session. This prevents secrets from leaking into unrelated commands or projects.
+
+Secrets exist only in memory while the project scope is active.
+
+### Direct Command Execution
+
+Sometimes you may want to run a command with secrets **without loading them into the interactive shell**.
+
+`kredenv exec` runs a command in a temporary environment populated with secrets from the `.kredsfile`.
+
+Example:
+
+```sh
+kredenv exec -- terraform apply
+kredenv exec -- npm run dev
+kredenv exec -n staging -- rails db:migrate
+```
+
+This approach is useful for:
+
+* running build tools
+* executing deployment commands
+* scripting workflows
+
+Secrets are injected only for the lifetime of the executed process.
+
+### Autoloading
+
+By default, `kredenv` automatically loads secrets when a `.kredsfile` is in scope. This behavior can be controlled using the autoload directive inside the `.kredsfile`.
+
+```txt
+# enable autoloading (either can be used - default behavior)
+autoload
+autoload on
+
+# disable autoloading
+autoload off
+```
+
+The directive can also be used to set the default namespace to load:
+
+```txt
+# load secrets from the staging namespace by default
+autoload for staging
+```
+
+> [!NOTE]
+> The autoload directive uses the default namespace when running `kredenv exec`. But a specific namespace can be specified using the `-n` or the `--namespace` flag.
+
+---
 
 ## Export & Import
 
-kredenv can export secrets to a file for backup or migration and re-import them on another machine. By default, it prints to stdout, but by using the `-o` flag, you can export to a file. YAML, JSON, and TOML formats along with the standard env format are supported.
+kredenv can export secrets to a file for backup or migration and re-import them on another machine. By default, it prints to stdout, but by using the `-o` flag, you can export to a file. YAML, JSON, TOML, and standard `.env` formats are supported.
 
 ```sh
 # export to stdout (env format, default)
@@ -297,7 +428,7 @@ kredenv export --encrypt
 
 When exporting multiple namespaces, env files are written per namespace (`.env.staging`, `.env.production`). Structured formats (json, yaml, toml) write a single file with namespaces as top-level keys.
 
-Importing restores secrets to the keyring and updates or creates a `.kredsfile`:
+Importing restores secrets to the vault and optionally updates or creates a `.kredsfile`.
 
 ```sh
 # import from a file
@@ -313,25 +444,53 @@ kredenv import .env --overwrite
 kredenv import .env --no-kredsfile
 ```
 
-## Running a command with secrets
-
-To run a single command with secrets injected without loading them into your session:
-
-```sh
-kredenv exec -- terraform apply
-kredenv exec -- npm run dev
-kredenv exec -n staging -- rails db:migrate
-```
+---
 
 ## Integrations
 
-### Prompt
+### Terminal Prompts
+
+`kredenv` exposes environment variables that prompt frameworks can use to display when secrets are loaded.
+
+Available variables:
+
+* `KREDENV_LOADED_COUNT` – number of secrets loaded in the current scope
+* `KREDENV_LOADED_VARS` – comma-separated list of secrets loaded in the current scope
+
+> [!NOTE]
+> Any prompt framework that supports environment variables can integrate with `kredenv`.  
+> Use `KREDENV_LOADED_COUNT` or `KREDENV_LOADED_VARS` to display indicators, counts, or secret names in your prompt.
+
+The following example uses the `env_var` module of [Starship](https://starship.rs) to display a prompt indicator when secrets are loaded. More information about the `env_var` module can be found [here](https://starship.rs/config/#environment-variable).
+
+```toml
+format = """\
+$username \
+on $hostname \
+at $directory \
+(with $git_branch )\
+(having ${env_var.kredenv})\
+$line_break\
+$character\
+"""
+
+# ... other config ...
+
+[env_var.kredenv]
+variable = "KREDENV_LOADED_COUNT"
+format = "[$symbol $env_value]($style)"
+symbol = "🔑"
+style = "bold yellow"
+disabled = false
+```
+
+This displays an indicator showing the number of secrets loaded whenever a `.kredsfile` is in scope.
 
 ## Caveats
 
-**Local-first:** kredenv stores secrets in a locally encrypted vault. It is designed for developer machines. It does not provide centralized secret management. Losing your master password means losing access to your secrets.
+**Local-first:** kredenv stores secrets in a locally encrypted vault. It is designed for developer machines and does not provide centralized secret management. Losing your master password means losing access to the vault unless you have exported or backed up your secrets.
 
-**CI / Production:** kredenv is not a remote secrets manager. For CI, use your platform’s native secret injection (GitHub Actions secrets, GitLab CI variables, etc.). For production systems, use a dedicated secrets manager such as HashiCorp Vault or AWS SSM.
+**CI / Production:** kredenv is not a remote secrets manager. For CI pipelines, use your platform’s native secret injection (GitHub Actions secrets, GitLab CI variables, etc.). For production systems, use a dedicated secrets manager such as HashiCorp Vault or AWS SSM.
 
 **Per-machine:** The encrypted vault is per-user, per-machine. Each developer must run `kredenv setup` to create their vault and populate required secrets.
 
@@ -346,23 +505,30 @@ kredenv is built on the shoulders of these open source projects:
 
 And to the Go team, for designing a language where a tool like this can go from idea to working binary in a weekend.
 
-## A note on LLMs
+## A Note on LLMs
 
-_kredenv was not vibe coded_. However, LLMs were used throughout development as a thinking partner to ideate on architecture, critique design decisions, and research edge cases across shell environments. Every decision was reasoned through, understood, and deliberately chosen.
+_kredenv was not vibe coded_. LLMs were used during development as a thinking partner to explore architecture ideas, critique design decisions, and research shell edge cases.
 
-The code, the design, the opinions and most importantly noob'ish coding practices in this tool are the author's own.
+The code, design decisions, and trade-offs are the author's own.
 
 ## Roadmap
 
-- [ ] Add a reasonable test suite
-- [ ] Guides on integrating with terminal prompt libraries (e.g. Starship, Oh My Posh)
-- [ ] IDE integrations for syntax highlighting and autocompletion
-- [ ] Explore a remote sync mechanism for `.kredsfile` and keyring secrets
+- [ ] Expand automated test coverage
+- [ ] IDE support for `.kredsfile` (syntax highlighting, linting, autocomplete)
+- [ ] Explore secure backup and sync mechanisms for the encrypted vault
 
 ## Contributing
 
-Not accepting contributions at this time while the project structure and roadmap are being figured out. Feel free to open issues for bugs or ideas. Feedback is welcome even if PRs are not yet.
+Contributions are not being accepted at this time while the project structure and roadmap are still evolving.
+
+Issues are welcome for:
+
+- bug reports
+- feature ideas
+- feedback
+
+Pull requests may be opened once the project stabilizes.
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) for details.
