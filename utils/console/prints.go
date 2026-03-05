@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/patppuccin/kredenv/consts"
@@ -20,6 +21,8 @@ var (
 	fmtKV      = func(txt string) string { return color.New(color.FgWhite).Sprint(txt) }
 	fmtDesc    = func(txt string) string { return color.New(color.FgGreen).Sprint(txt) }
 )
+
+func VSpacer(lines int) { fmt.Fprint(writer, strings.Repeat("\n", lines)) }
 
 func Banner(msg string) string { return consts.AppBanner + "\n" + fmtDesc(msg) + "\n" }
 
