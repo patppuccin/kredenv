@@ -111,9 +111,6 @@ var initCmd = &cobra.Command{
 		defer s.Close()
 
 		ns := flagInitNamespace
-		if ns == "" {
-			ns = kf.AutoloadNamespace
-		}
 		nsLabel := ""
 		if ns != "" {
 			nsLabel = " (namespace: " + ns + ")"
@@ -124,10 +121,6 @@ var initCmd = &cobra.Command{
 		for _, secret := range kf.Secrets {
 			if ns != "" {
 				if !strings.HasPrefix(secret.Key, ns+":") {
-					continue
-				}
-			} else {
-				if strings.Contains(secret.Key, ":") {
 					continue
 				}
 			}
@@ -178,6 +171,7 @@ var initCmd = &cobra.Command{
 			return fmt.Sprintf("%s %d %s: %s", label, count, noun, strings.Join(keys, ", "))
 		}
 
+		console.VSpacer(1)
 		console.InfoGroup(
 			"Setup complete"+nsLabel,
 			fmtSetupGroup(stored, "Stored"),
