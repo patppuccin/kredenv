@@ -23,10 +23,6 @@ var (
 
 func Banner(msg string) string { return consts.AppBanner + "\n" + fmtDesc(msg) + "\n" }
 
-func Block(title string, msgs ...string) {
-	fmt.Fprintf(writer, "%s %s\n", fmtDesc("██████████████"), title)
-}
-
 func Success(msg string) { logSingle(fmtSuccess("(✓)"), msg) }
 func Debug(msg string)   { logSingle(fmtDebug("(~)"), msg) }
 func Info(msg string)    { logSingle(fmtInfo("(i)"), msg) }
