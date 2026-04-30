@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/hooks"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/hooks"
 	"github.com/spf13/cobra"
 )
 

@@ -4,8 +4,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/spec"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/spf13/cobra"
 )
 

@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/patppuccin/kredenv/consts"
-	"github.com/patppuccin/kredenv/utils/auth"
-	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/helpers"
-	"github.com/patppuccin/kredenv/utils/spec"
-	"github.com/patppuccin/kredenv/utils/store"
+	"github.com/patppuccin/kredenv/src/auth"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/consts"
+	"github.com/patppuccin/kredenv/src/helpers"
+	"github.com/patppuccin/kredenv/src/spec"
+	"github.com/patppuccin/kredenv/src/store"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )

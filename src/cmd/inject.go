@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/mattn/go-isatty"
-	"github.com/patppuccin/kredenv/consts"
-	"github.com/patppuccin/kredenv/utils/auth"
-	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/spec"
-	"github.com/patppuccin/kredenv/utils/store"
+	"github.com/patppuccin/kredenv/src/auth"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/consts"
+	"github.com/patppuccin/kredenv/src/spec"
+	"github.com/patppuccin/kredenv/src/store"
 	"github.com/spf13/cobra"
 )
 

@@ -5,9 +5,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/patppuccin/kredenv/utils/auth"
-	"github.com/patppuccin/kredenv/utils/console"
-	"github.com/patppuccin/kredenv/utils/store"
+	"github.com/patppuccin/kredenv/src/auth"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/store"
 	"github.com/spf13/cobra"
 )
 

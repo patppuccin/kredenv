@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/patppuccin/kredenv/consts"
-	"github.com/patppuccin/kredenv/utils/console"
+	"github.com/patppuccin/kredenv/src/console"
+	"github.com/patppuccin/kredenv/src/consts"
 	"github.com/spf13/cobra"
 )
 

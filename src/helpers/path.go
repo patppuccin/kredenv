@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/patppuccin/kredenv/consts"
+	"github.com/patppuccin/kredenv/src/consts"
 )
 
 func GetRootDir() (string, error) {

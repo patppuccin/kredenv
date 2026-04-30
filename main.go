@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/patppuccin/kredenv/cmd"
+	"github.com/patppuccin/kredenv/src/cmd"
 )
 
 func main() {

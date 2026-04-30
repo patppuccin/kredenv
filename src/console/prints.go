@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/patppuccin/kredenv/consts"
+	"github.com/patppuccin/kredenv/src/consts"
 )
 
 var writer io.Writer = os.Stdout

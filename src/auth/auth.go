@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/patppuccin/kredenv/consts"
-	"github.com/patppuccin/kredenv/utils/helpers"
+	"github.com/patppuccin/kredenv/src/consts"
+	"github.com/patppuccin/kredenv/src/helpers"
 	"github.com/zalando/go-keyring"
 )
 
