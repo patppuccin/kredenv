@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,26 @@ func Store(password string) error {
 }
 
 func Delete() error {
-	return keyring.Delete(consts.AppName, consts.KeyringKey)
+	var errs []error
+
+	if err := keyring.Delete(consts.AppName, consts.KeyringKey); err != nil && err != keyring.ErrNotFound {
+		errs = append(errs, fmt.Errorf("could not delete credentials from keyring: %w", err))
+	}
+
+	rootDir, err := helpers.GetRootDir()
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		path := filepath.Join(rootDir, consts.AuthMasterFile)
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("could not delete credentials file: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 func retrieveFromFile() (string, error) {
