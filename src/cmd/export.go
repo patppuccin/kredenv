@@ -303,7 +303,7 @@ func collectGroupedSecrets(s *store.Store) (map[string]map[string]string, []erro
 		if _, ok := grouped[ns]; !ok {
 			grouped[ns] = map[string]string{}
 		}
-		grouped[ns][secret.Alias] = value
+		grouped[ns][secret.EnvKey()] = value
 	}
 
 	if len(collectErrs) > 0 {

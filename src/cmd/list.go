@@ -94,12 +94,12 @@ func listFromKredsfile(s *store.Store, ns string) {
 		value, err := s.Get(secret.VaultKey())
 		if err == nil {
 			if flagListShowValues {
-				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s = %s", secret.Alias, secret.VaultKey(), value))
+				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s = %s", secret.EnvKey(), secret.VaultKey(), value))
 			} else {
-				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s", secret.Alias, secret.VaultKey()))
+				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s", secret.EnvKey(), secret.VaultKey()))
 			}
 		} else {
-			lookupMisses = append(lookupMisses, fmt.Sprintf("%s → %s = <not set>", secret.Alias, secret.VaultKey()))
+			lookupMisses = append(lookupMisses, fmt.Sprintf("%s → %s = <not set>", secret.EnvKey(), secret.VaultKey()))
 		}
 	}
 

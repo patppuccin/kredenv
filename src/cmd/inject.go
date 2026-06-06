@@ -87,7 +87,8 @@ var injectCmd = &cobra.Command{
 			if err != nil {
 				continue
 			}
-			resolved[secret.Alias] = value
+
+			resolved[secret.EnvKey()] = value
 		}
 
 		switch flagInjectFormat {

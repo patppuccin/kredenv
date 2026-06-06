@@ -40,6 +40,13 @@ func (s Secret) VaultKey() string {
 	return s.Key
 }
 
+func (s Secret) EnvKey() string {
+	if s.Alias != "" {
+		return s.Alias
+	}
+	return s.Key
+}
+
 type Kredsfile struct {
 	RecurseDepth      int      `yaml:"recurse,omitempty"`
 	Autoload          bool     `yaml:"autoload,omitempty"`

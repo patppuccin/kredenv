@@ -90,7 +90,8 @@ var execCmd = &cobra.Command{
 				missingRequired = append(missingRequired, secret.VaultKey())
 				continue
 			}
-			resolved[secret.Alias] = value
+
+			resolved[secret.EnvKey()] = value
 		}
 
 		if len(missingRequired) > 0 {
