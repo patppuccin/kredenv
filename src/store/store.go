@@ -138,19 +138,7 @@ func Migrate(oldPassword, newPassword string) error {
 	if err != nil {
 		return fmt.Errorf("could not open store: %w", err)
 	}
-
-	data, _ := s.List()
-
-	newStore, err := Open(newPassword)
-	if err != nil {
-		return fmt.Errorf("could not create new store: %w", err)
-	}
-
-	for k, v := range data {
-		if err := newStore.Set(k, v); err != nil {
-			return fmt.Errorf("could not migrate secret %s: %w", k, err)
-		}
-	}
-
-	return newStore.Close()
+	s.password = newPassword
+	s.changed = true
+	return s.Close()
 }
