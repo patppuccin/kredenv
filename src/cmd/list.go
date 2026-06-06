@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -24,26 +24,26 @@ var (
 var listCmd = &cobra.Command{
 	Use:           "list",
 	Short:         helpListCmd,
-	Long:          console.Banner(helpListCmd),
+	Long:          banner(helpListCmd),
 	GroupID:       "secrets",
 	Aliases:       []string{"ls"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
-			console.Error("No arguments expected, got " + strconv.Itoa(len(args)))
+			termactions.Log().Error("No arguments expected, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
@@ -59,11 +59,11 @@ var listCmd = &cobra.Command{
 func listFromKredsfile(s *store.Store, ns string) {
 	path, err := spec.Locate()
 	if err != nil {
-		console.Error(err.Error())
+		termactions.Log().Error(err.Error())
 		os.Exit(1)
 	}
 	if path == "" {
-		console.Warn("No kredsfile.yaml found")
+		termactions.Log().Warn("No kredsfile.yaml found")
 		os.Exit(1)
 	}
 
@@ -73,7 +73,7 @@ func listFromKredsfile(s *store.Store, ns string) {
 		for i, e := range errs {
 			errMsgs[i] = e.Error()
 		}
-		console.ErrorGroup("Failed to parse "+path, errMsgs...)
+		termactions.LogGroup().Error("Failed to parse "+path, errMsgs...)
 		os.Exit(1)
 	}
 
@@ -104,21 +104,21 @@ func listFromKredsfile(s *store.Store, ns string) {
 	}
 
 	if len(lookupHits) > 0 {
-		console.InfoGroup("The following keys were found", lookupHits...)
+		termactions.LogGroup().Info("The following keys were found", lookupHits...)
 	}
 	if len(lookupMisses) > 0 {
-		console.WarnGroup("The following keys were not found", lookupMisses...)
+		termactions.LogGroup().Warn("The following keys were not found", lookupMisses...)
 	}
 }
 
 func listFromStore(s *store.Store, ns string) {
 	data, err := s.List()
 	if err != nil {
-		console.Error(err.Error())
+		termactions.Log().Error(err.Error())
 		os.Exit(1)
 	}
 	if len(data) == 0 {
-		console.Warn("No secrets found in store")
+		termactions.Log().Warn("No secrets found in store")
 		return
 	}
 
@@ -135,11 +135,11 @@ func listFromStore(s *store.Store, ns string) {
 	}
 
 	if len(msgs) == 0 && ns != "" {
-		console.Warn("No secrets found for namespace: " + ns)
+		termactions.Log().Warn("No secrets found for namespace: " + ns)
 		return
 	}
 
-	console.InfoGroup("Store secrets", msgs...)
+	termactions.LogGroup().Info("Store secrets", msgs...)
 }
 
 func init() {

@@ -10,10 +10,10 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/helpers"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
@@ -29,13 +29,13 @@ var (
 var importCmd = &cobra.Command{
 	Use:           "import <file>",
 	Short:         helpImportCmd,
-	Long:          console.Banner(helpImportCmd),
+	Long:          banner(helpImportCmd),
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			console.Error("Expected exactly one argument: path to the file to import")
+			termactions.Log().Error("Expected exactly one argument: path to the file to import")
 			os.Exit(1)
 		}
 
@@ -43,7 +43,7 @@ var importCmd = &cobra.Command{
 
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			console.Error("Could not read file: " + err.Error())
+			termactions.Log().Error("Could not read file: " + err.Error())
 			os.Exit(1)
 		}
 
@@ -53,7 +53,7 @@ var importCmd = &cobra.Command{
 		isEnvFile := strings.Contains(base, ".env")
 		isStructured := slices.Contains([]string{".json", ".yaml", ".yml", ".toml"}, ext)
 		if !isEnvFile && !isStructured {
-			console.ErrorGroup(
+			termactions.LogGroup().Error(
 				"Files with extension "+ext+" are not supported",
 				"Supported formats: .env, .env.<namespace>, .json, .yaml, .yml, .toml}",
 			)
@@ -61,7 +61,7 @@ var importCmd = &cobra.Command{
 		}
 
 		if isEnvFile && len(flagImportNamespaces) > 1 {
-			console.Error("Only one namespace can be assigned to an env file")
+			termactions.Log().Error("Only one namespace can be assigned to an env file")
 			os.Exit(1)
 		}
 
@@ -70,17 +70,17 @@ var importCmd = &cobra.Command{
 		switch ext {
 		case ".json":
 			if err := json.Unmarshal(data, &grouped); err != nil {
-				console.Error("Could not parse the JSON document: " + err.Error())
+				termactions.Log().Error("Could not parse the JSON document: " + err.Error())
 				os.Exit(1)
 			}
 		case ".yaml", ".yml":
 			if err := yaml.Unmarshal(data, &grouped); err != nil {
-				console.Error("Could not parse the YAML document: " + err.Error())
+				termactions.Log().Error("Could not parse the YAML document: " + err.Error())
 				os.Exit(1)
 			}
 		case ".toml":
 			if _, err := toml.Decode(string(data), &grouped); err != nil {
-				console.Error("Could not parse the TOML document: " + err.Error())
+				termactions.Log().Error("Could not parse the TOML document: " + err.Error())
 				os.Exit(1)
 			}
 		default:
@@ -100,7 +100,7 @@ var importCmd = &cobra.Command{
 			}
 
 			if len(envParseErr) > 0 {
-				console.ErrorGroup("Could not parse env file", envParseErr...)
+				termactions.LogGroup().Error("Could not parse env file", envParseErr...)
 				os.Exit(1)
 			}
 
@@ -117,20 +117,20 @@ var importCmd = &cobra.Command{
 		}
 
 		if len(grouped) == 0 {
-			console.Warn("No secrets found in file")
+			termactions.Log().Warn("No secrets found in file")
 			return
 		}
 
 		// prompt for decryption password if encrypted values exist
 		decryptPassword, err := getDecryptionPassword(grouped)
 		if err != nil {
-			console.Error("Could not read password: " + err.Error())
+			termactions.Log().Error("Could not read password: " + err.Error())
 			os.Exit(1)
 		}
 
 		if decryptPassword != "" {
 			if err := decryptValues(grouped, decryptPassword); err != nil {
-				console.Error(err.Error())
+				termactions.Log().Error(err.Error())
 				os.Exit(1)
 			}
 		}
@@ -138,20 +138,20 @@ var importCmd = &cobra.Command{
 		// open store
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
 
 		if !flagImportNoKredsfile {
 			if err := updateOrCreateKredsfile(grouped); err != nil {
-				console.Error("Could not update .kredsfile: " + err.Error())
+				termactions.Log().Error("Could not update .kredsfile: " + err.Error())
 				os.Exit(1)
 			}
 		}
@@ -159,10 +159,10 @@ var importCmd = &cobra.Command{
 		imported, skipped, misses := storeInStore(s, grouped)
 
 		if len(misses) > 0 {
-			console.ErrorGroup("Failed to store some keys", misses...)
+			termactions.LogGroup().Error("Failed to store some keys", misses...)
 		}
 
-		console.InfoGroup(
+		termactions.LogGroup().Info(
 			"Import complete",
 			"Imported "+fmt.Sprintf("%d", imported)+" keys",
 			"Skipped "+fmt.Sprintf("%d", skipped)+" keys",
@@ -175,12 +175,17 @@ func getDecryptionPassword(grouped map[string]map[string]string) (string, error)
 	for _, secrets := range grouped {
 		for _, value := range secrets {
 			if strings.HasPrefix(value, "enc:") {
-				pwd, err := console.PromptSecret("Enter decryption password")
+				pwd, err := termactions.Secret().
+					WithLabel("Enter decryption password").
+					WithValidator(func(s string) (string, bool) {
+						if strings.TrimSpace(s) == "" {
+							return "password cannot be empty", false
+						}
+						return "", true
+					}).
+					Render()
 				if err != nil {
 					return "", fmt.Errorf("could not read password")
-				}
-				if pwd == "" {
-					return "", fmt.Errorf("password cannot be empty")
 				}
 				return pwd, nil
 			}
@@ -309,9 +314,9 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	}
 
 	if newFile {
-		console.Success("Created .kredsfile at " + path)
+		termactions.Log().Success("Created .kredsfile at " + path)
 	} else {
-		console.Success("Updated .kredsfile at " + path)
+		termactions.Log().Success("Updated .kredsfile at " + path)
 	}
 	return nil
 }

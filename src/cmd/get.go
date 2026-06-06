@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -20,13 +20,13 @@ var (
 var getCmd = &cobra.Command{
 	Use:           "get <key>",
 	Short:         helpGetCmd,
-	Long:          console.Banner(helpGetCmd),
+	Long:          banner(helpGetCmd),
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			console.Error("Expected exactly one argument, got " + strconv.Itoa(len(args)))
+			termactions.Log().Error("Expected exactly one argument, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
 
@@ -37,20 +37,20 @@ var getCmd = &cobra.Command{
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
 
 		value, err := s.Get(key)
 		if err != nil {
-			console.Error("Could not retrieve " + key)
+			termactions.Log().Error("Could not retrieve " + key)
 			os.Exit(1)
 		}
 

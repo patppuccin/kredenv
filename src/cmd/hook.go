@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/hooks"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -22,20 +22,20 @@ Run the appropriate command once to install the hook:
 var hookCmd = &cobra.Command{
 	Use:           "hook <shell>",
 	Short:         helpHookCmd,
-	Long:          console.Banner(helpHookCmd) + usageInstructions,
+	Long:          banner(helpHookCmd) + usageInstructions,
 	GroupID:       "setup",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
-			console.Error("Expected a shell name as the only argument")
+			termactions.Log().Error("Expected a shell name as the only argument")
 			os.Exit(1)
 		}
 
 		sh, ok := hooks.Get(args[0])
 		if !ok {
-			console.Error("The shell '" + args[0] + "' is not supported")
-			console.Info("Supported shells are " + hooks.Names())
+			termactions.Log().Error("The shell '" + args[0] + "' is not supported")
+			termactions.Log().Info("Supported shells are " + hooks.Names())
 			os.Exit(1)
 		}
 		// fmt.Println(sh.Hook)

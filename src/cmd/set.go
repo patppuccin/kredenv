@@ -6,8 +6,8 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -20,18 +20,18 @@ var (
 var setCmd = &cobra.Command{
 	Use:           "set <key> [value]",
 	Short:         helpSetCmd,
-	Long:          console.Banner(helpSetCmd),
+	Long:          banner(helpSetCmd),
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		switch len(args) {
 		case 0:
-			console.Error("Expected at least one argument, got 0")
+			termactions.Log().Error("Expected at least one argument, got 0")
 			os.Exit(1)
 		case 1, 2: // valid
 		default:
-			console.Error("Expected at most two arguments, got " + fmt.Sprintf("%d", len(args)))
+			termactions.Log().Error("Expected at most two arguments, got " + fmt.Sprintf("%d", len(args)))
 			os.Exit(1)
 		}
 
@@ -45,42 +45,42 @@ var setCmd = &cobra.Command{
 			value = args[1]
 		} else {
 			if !isatty.IsTerminal(os.Stdin.Fd()) {
-				console.Error("No value provided — interactive set requires a terminal to prompt")
+				termactions.Log().Error("No value provided — interactive set requires a terminal to prompt")
 				os.Exit(1)
 			}
 
 			var err error
-			value, err = console.PromptSecret("Value for " + key)
+			value, err = termactions.Secret().WithLabel("Value for " + key).Render()
 			if err != nil {
-				console.Error("Could not read input")
+				termactions.Log().Error("Could not read input")
 				os.Exit(1)
 			}
 		}
 
 		if value == "" {
-			console.Warn("Value cannot be empty")
+			termactions.Log().Warn("Value cannot be empty")
 			os.Exit(1)
 		}
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
 
 		if err := s.Set(key, value); err != nil {
-			console.Error("Could not store " + key)
+			termactions.Log().Error("Could not store " + key)
 			os.Exit(1)
 		}
 
-		console.Success("Stored " + key)
+		termactions.Log().Success("Stored " + key)
 	},
 }
 

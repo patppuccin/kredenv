@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -18,26 +18,26 @@ var (
 var deleteCmd = &cobra.Command{
 	Use:           "delete <key> [keys...]",
 	Short:         helpDeleteCmd,
-	Long:          console.Banner(helpDeleteCmd),
+	Long:          banner(helpDeleteCmd),
 	GroupID:       "secrets",
 	Aliases:       []string{"del"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			console.Error("Expected at least one argument, got 0")
+			termactions.Log().Error("Expected at least one argument, got 0")
 			os.Exit(1)
 		}
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
@@ -47,10 +47,10 @@ var deleteCmd = &cobra.Command{
 				key = flagDeleteNamespace + ":" + key
 			}
 			if err := s.Delete(key); err != nil {
-				console.Error(err.Error())
+				termactions.Log().Error(err.Error())
 				os.Exit(1)
 			}
-			console.Info("Deleted " + key)
+			termactions.Log().Info("Deleted " + key)
 		}
 	},
 }

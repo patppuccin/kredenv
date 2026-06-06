@@ -9,10 +9,10 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/consts"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ var injectCmd = &cobra.Command{
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if isatty.IsTerminal(os.Stdout.Fd()) {
-			console.Error("inject is for shell hook use only, use `kredenv load` instead")
+			termactions.Log().Error("inject is for shell hook use only, use `kredenv load` instead")
 			return
 		}
 

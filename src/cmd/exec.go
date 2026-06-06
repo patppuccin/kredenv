@@ -6,9 +6,9 @@ import (
 	"os/exec"
 
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -26,20 +26,20 @@ var flagExecNamespace string
 var execCmd = &cobra.Command{
 	Use:           "exec -- <command> [args...]",
 	Short:         helpExecCmd,
-	Long:          console.Banner(helpExecCmd),
+	Long:          banner(helpExecCmd),
 	GroupID:       "env",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Example:       execExamples,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			console.Error("No command provided to execute")
+			termactions.Log().Error("No command provided to execute")
 			os.Exit(1)
 		}
 
 		path, err := spec.Locate()
 		if err != nil || path == "" {
-			console.Error("No kredsfile.yaml found")
+			termactions.Log().Error("No kredsfile.yaml found")
 			os.Exit(1)
 		}
 
@@ -49,19 +49,19 @@ var execCmd = &cobra.Command{
 			for i, e := range errs {
 				errMsgs[i] = e.Error()
 			}
-			console.ErrorGroup("Failed to parse kredsfile.yaml", errMsgs...)
+			termactions.LogGroup().Error("Failed to parse kredsfile.yaml", errMsgs...)
 			os.Exit(1)
 		}
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
@@ -94,7 +94,7 @@ var execCmd = &cobra.Command{
 		}
 
 		if len(missingRequired) > 0 {
-			console.ErrorGroup("Missing required secrets", missingRequired...)
+			termactions.LogGroup().Error("Missing required secrets", missingRequired...)
 			os.Exit(1)
 		}
 
@@ -116,7 +116,7 @@ func runWith(args []string, secrets map[string]string) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
-		console.Error(err.Error())
+		termactions.Log().Error(err.Error())
 		os.Exit(1)
 	}
 }

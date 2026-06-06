@@ -10,11 +10,11 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/consts"
 	"github.com/patppuccin/kredenv/src/helpers"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
@@ -32,18 +32,18 @@ var (
 var exportCmd = &cobra.Command{
 	Use:           "export",
 	Short:         helpExportCmd,
-	Long:          console.Banner(helpExportCmd),
+	Long:          banner(helpExportCmd),
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
-			console.Error("No arguments supported for export command")
+			termactions.Log().Error("No arguments supported for export command")
 			os.Exit(1)
 		}
 
 		if !slices.Contains(consts.SupportedExportFormats, flagExportFormat) {
-			console.ErrorGroup(
+			termactions.LogGroup().Error(
 				"Format '"+flagExportFormat+"' is not supported",
 				"Supported formats: "+strings.Join(consts.SupportedExportFormats, ", "),
 			)
@@ -52,13 +52,13 @@ var exportCmd = &cobra.Command{
 
 		password, err := auth.Retrieve()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 
 		s, err := store.Open(password)
 		if err != nil {
-			console.Error("Could not open store")
+			termactions.Log().Error("Could not open store")
 			os.Exit(1)
 		}
 		defer s.Close()
@@ -69,12 +69,12 @@ var exportCmd = &cobra.Command{
 			for i, err := range errs {
 				errMsgs[i] = err.Error()
 			}
-			console.ErrorGroup("Failed to collect secrets", errMsgs...)
+			termactions.LogGroup().Error("Failed to collect secrets", errMsgs...)
 			os.Exit(1)
 		}
 
 		if len(groupedSecrets) == 0 {
-			console.Warn("No secrets to export")
+			termactions.Log().Warn("No secrets to export")
 			return
 		}
 
@@ -89,25 +89,33 @@ var exportCmd = &cobra.Command{
 				}
 			}
 			if len(groupedSecrets) == 0 {
-				console.Warn("No secrets found for the specified namespaces")
+				termactions.Log().Warn("No secrets found for the specified namespaces")
 				return
 			}
 		}
 
 		var encPassword string
 		if flagExportEncrypt {
-			encPassword, err = console.PromptSecret("Enter encryption password: ")
+			encPassword, err = termactions.Secret().
+				WithLabel("Enter encryption password").
+				WithValidator(func(s string) (string, bool) {
+					if strings.TrimSpace(s) == "" {
+						return "encryption password cannot be empty", false
+					}
+					return "", true
+				}).
+				Render()
 			if err != nil {
-				console.Error(err.Error())
-				os.Exit(1)
-			}
-			if encPassword == "" {
-				console.Error("Encryption password cannot be empty")
+				if err == termactions.ErrInterrupted {
+					termactions.Log().Warn("Export aborted by user")
+					os.Exit(1)
+				}
+				termactions.Log().Error(err.Error())
 				os.Exit(1)
 			}
 		}
 
-		console.Warn("Export contains secrets — do not commit to version control")
+		termactions.Log().Warn("Export contains secrets — do not commit to version control")
 
 		switch flagExportFormat {
 		case "env":
@@ -125,7 +133,7 @@ func exportEnv(grouped map[string]map[string]string, password string) {
 			if password != "" {
 				encrypted, err := helpers.Encrypt([]byte(v), password)
 				if err != nil {
-					console.Error("Could not encrypt value for " + k)
+					termactions.Log().Error("Could not encrypt value for " + k)
 					os.Exit(1)
 				}
 				v = "enc:" + encrypted
@@ -141,13 +149,13 @@ func exportEnv(grouped map[string]map[string]string, password string) {
 
 		absOutputPath, err := filepath.Abs(flagExportOutput)
 		if err != nil {
-			console.Error("Could not resolve " + flagExportOutput + ": " + err.Error())
+			termactions.Log().Error("Could not resolve " + flagExportOutput + ": " + err.Error())
 			os.Exit(1)
 		}
 
 		info, err := os.Stat(absOutputPath)
 		if err != nil && !os.IsNotExist(err) {
-			console.Error("Could not identify path: " + absOutputPath)
+			termactions.Log().Error("Could not identify path: " + absOutputPath)
 			os.Exit(1)
 		}
 
@@ -170,7 +178,7 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 			for k, v := range secrets {
 				encrypted, err := helpers.Encrypt([]byte(v), password)
 				if err != nil {
-					console.Error("Could not encrypt value for " + k)
+					termactions.Log().Error("Could not encrypt value for " + k)
 					os.Exit(1)
 				}
 				grouped[ns][k] = "enc:" + encrypted
@@ -180,7 +188,7 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 
 	if secrets, ok := grouped[""]; ok {
 		if _, conflict := grouped["_default"]; conflict {
-			console.ErrorGroup(
+			termactions.LogGroup().Error(
 				"Unable to export namespace '_default'",
 				"The namespace '_default' conflicts with flat keys",
 				"Rename your namespace to prevent namespace collisions",
@@ -197,21 +205,21 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 	case "json":
 		data, err := json.MarshalIndent(grouped, "", "  ")
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 		output = string(data) + "\n"
 	case "yaml":
 		data, err := yaml.Marshal(grouped)
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 		output = string(data) + "\n"
 	case "toml":
 		data, err := toml.Marshal(grouped)
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 		output = string(data) + "\n"
@@ -224,13 +232,13 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 
 	absOutputPath, err := filepath.Abs(flagExportOutput)
 	if err != nil {
-		console.Error("Could not resolve " + flagExportOutput + ": " + err.Error())
+		termactions.Log().Error("Could not resolve " + flagExportOutput + ": " + err.Error())
 		os.Exit(1)
 	}
 
 	info, err := os.Stat(absOutputPath)
 	if err != nil && !os.IsNotExist(err) {
-		console.Error("Could not identify path: " + absOutputPath)
+		termactions.Log().Error("Could not identify path: " + absOutputPath)
 		os.Exit(1)
 	}
 
@@ -241,7 +249,7 @@ func exportStructured(grouped map[string]map[string]string, password string) {
 
 	ext := strings.TrimPrefix(filepath.Ext(absOutputPath), ".")
 	if ext != flagExportFormat {
-		console.Error("File extension ." + ext + " does not match format " + flagExportFormat)
+		termactions.Log().Error("File extension ." + ext + " does not match format " + flagExportFormat)
 		os.Exit(1)
 	}
 
@@ -324,18 +332,18 @@ func sanitizeNamespace(ns string) string {
 func writeFile(path, content string) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		console.Error("Could not resolve " + path + ": " + err.Error())
+		termactions.Log().Error("Could not resolve " + path + ": " + err.Error())
 		os.Exit(1)
 	}
 	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
-		console.Error("Could not create directory: " + err.Error())
+		termactions.Log().Error("Could not create directory: " + err.Error())
 		os.Exit(1)
 	}
 	if err := os.WriteFile(absPath, []byte(content), 0600); err != nil {
-		console.Error("Could not write " + absPath + ": " + err.Error())
+		termactions.Log().Error("Could not write " + absPath + ": " + err.Error())
 		os.Exit(1)
 	}
-	console.Success("Exported to " + absPath)
+	termactions.Log().Success("Exported to " + absPath)
 }
 
 func init() {

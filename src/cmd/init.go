@@ -8,10 +8,10 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/src/auth"
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/consts"
 	"github.com/patppuccin/kredenv/src/spec"
 	"github.com/patppuccin/kredenv/src/store"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ var (
 var initCmd = &cobra.Command{
 	Use:           "init",
 	Short:         helpInitCmd,
-	Long:          console.Banner(helpInitCmd),
+	Long:          banner(helpInitCmd),
 	GroupID:       "setup",
 	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
@@ -36,12 +36,12 @@ var initCmd = &cobra.Command{
 
 		target, err := filepath.Abs(flagInitFile)
 		if err != nil {
-			console.Error("Could not resolve " + flagInitFile + ": " + err.Error())
+			termactions.Log().Error("Could not resolve " + flagInitFile + ": " + err.Error())
 			os.Exit(1)
 		}
 
 		if filepath.Base(target) != "kredsfile.yaml" {
-			console.Error("Kredsfile manifest must be named kredsfile.yaml, got: " + filepath.Base(target))
+			termactions.Log().Error("Kredsfile manifest must be named kredsfile.yaml, got: " + filepath.Base(target))
 			os.Exit(1)
 		}
 
@@ -52,22 +52,22 @@ var initCmd = &cobra.Command{
 
 		if fileExists && flagInitOverwrite {
 			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
-				console.Error("Could not overwrite kredsfile.yaml")
+				termactions.Log().Error("Could not overwrite kredsfile.yaml")
 				os.Exit(1)
 			}
-			console.Success("Overwritten at " + target)
+			termactions.Log().Success("Overwritten at " + target)
 		} else if !fileExists {
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				console.Error("Could not create directories for: " + target)
+				termactions.Log().Error("Could not create directories for: " + target)
 				os.Exit(1)
 			}
 			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
-				console.Error("Could not write manifest template to " + target)
+				termactions.Log().Error("Could not write manifest template to " + target)
 				os.Exit(1)
 			}
-			console.Success("Initialized kredsfile manifest at " + target)
+			termactions.Log().Success("Initialized kredsfile manifest at " + target)
 		} else {
-			console.Info("Using existing manifest at " + target)
+			termactions.Log().Info("Using existing manifest at " + target)
 		}
 
 		if flagInitNoSetup {
@@ -84,24 +84,24 @@ var initCmd = &cobra.Command{
 			for i, e := range errs {
 				errMsgs[i] = e.Error()
 			}
-			console.ErrorGroup("Failed to parse "+target, errMsgs...)
+			termactions.LogGroup().Error("Failed to parse "+target, errMsgs...)
 			os.Exit(1)
 		}
 
 		if len(kf.Secrets) == 0 {
-			console.Warn("No secrets declared in kredsfile.yaml")
+			termactions.Log().Warn("No secrets declared in kredsfile.yaml")
 			return
 		}
 
 		authPasswd, err := auth.Retrieve()
 		if err != nil {
-			console.Warn("Could not open auth store: run '" + consts.AppName + " setup' first to set up")
+			termactions.Log().Warn("Could not open auth store: run '" + consts.AppName + " setup' first to set up")
 			return
 		}
 
 		s, err := store.Open(authPasswd)
 		if err != nil {
-			console.Warn("Could not open the secrets store")
+			termactions.Log().Warn("Could not open the secrets store")
 			return
 		}
 		defer s.Close()
@@ -124,9 +124,13 @@ var initCmd = &cobra.Command{
 				continue
 			}
 
-			value, err := console.PromptSecret("Enter value for " + secret.VaultKey())
+			value, err := termactions.Secret().WithLabel("Enter value for " + secret.VaultKey()).Render()
 			if err != nil {
-				console.Error("Could not read input")
+				if err == termactions.ErrInterrupted {
+					termactions.Log().Warn("Initialization aborted by user")
+					os.Exit(1)
+				}
+				termactions.Log().Error("Could not read input")
 				os.Exit(1)
 			}
 
@@ -136,15 +140,16 @@ var initCmd = &cobra.Command{
 			}
 
 			if err := s.Set(secret.VaultKey(), value); err != nil {
-				console.Error("Could not store " + secret.VaultKey())
+				termactions.Log().Error("Could not store " + secret.VaultKey())
 				os.Exit(1)
 			}
 
 			stored = append(stored, secret.VaultKey())
+			termactions.Log().Success("Stored " + secret.VaultKey())
 		}
 
 		if len(stored) == 0 && len(skipped) == 0 {
-			console.Success("All secrets already set" + nsLabel)
+			termactions.Log().Success("All secrets already set" + nsLabel)
 			return
 		}
 
@@ -160,8 +165,8 @@ var initCmd = &cobra.Command{
 			return fmt.Sprintf("%s %d %s: %s", label, count, noun, strings.Join(keys, ", "))
 		}
 
-		console.VSpacer(1)
-		console.InfoGroup(
+		fmt.Println()
+		termactions.LogGroup().Info(
 			"Setup complete"+nsLabel,
 			fmtSetupGroup(stored, "Stored"),
 			fmtSetupGroup(skipped, "Skipped"),

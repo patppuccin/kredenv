@@ -4,8 +4,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/patppuccin/kredenv/src/console"
 	"github.com/patppuccin/kredenv/src/spec"
+	"github.com/patppuccin/termactions"
 	"github.com/spf13/cobra"
 )
 
@@ -14,25 +14,25 @@ const helpWhichCmd = "Prints the path to the .kredsfile that will be used"
 var whichCmd = &cobra.Command{
 	Use:           "which",
 	Short:         helpWhichCmd,
-	Long:          console.Banner(helpWhichCmd),
+	Long:          banner(helpWhichCmd),
 	GroupID:       "env",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
-			console.Error("No arguments expected, got " + strconv.Itoa(len(args)))
+			termactions.Log().Error("No arguments expected, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
 		kp, err := spec.Locate()
 		if err != nil {
-			console.Error(err.Error())
+			termactions.Log().Error(err.Error())
 			os.Exit(1)
 		}
 		if kp == "" {
-			console.Warn("Could not locate .kredsfile")
+			termactions.Log().Warn("Could not locate .kredsfile")
 			os.Exit(1)
 		}
-		console.Info("Located kredsfile at: " + kp)
+		termactions.Log().Info("Located kredsfile at: " + kp)
 	},
 }
 
