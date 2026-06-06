@@ -5,9 +5,11 @@
 
 # Unload secrets tracked in KREDENV_LOADED_VARS
 function global:_KredenvUnload {
-    if ($null -ne $env:KREDENV_LOADED_VARS) {
+    if ($null -ne $env:KREDENV_LOADED_VARS -and $env:KREDENV_LOADED_VARS -ne "") {
         foreach ($Key in ($env:KREDENV_LOADED_VARS -split ",")) {
-            Remove-Item -Path "Env:$Key" -ErrorAction SilentlyContinue
+            if ($Key -ne "") {
+                Remove-Item -Path "Env:$Key" -ErrorAction SilentlyContinue
+            }
         }
         Remove-Item -Path "Env:KREDENV_LOADED_VARS" -ErrorAction SilentlyContinue
         Remove-Item -Path "Env:KREDENV_LOADED_COUNT" -ErrorAction SilentlyContinue

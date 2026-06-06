@@ -5,8 +5,8 @@
 
 # Unload secrets tracked in KREDENV_LOADED_VARS
 def --env _kredenv_unload [] {
-     if ($env.KREDENV_LOADED_VARS? | is-not-empty) {
-        for key in ($env.KREDENV_LOADED_VARS | split row ",") {
+    if ($env.KREDENV_LOADED_VARS? | is-not-empty) {
+        for key in ($env.KREDENV_LOADED_VARS | split row "," | where { |k| ($k | str trim) | is-not-empty }) {
             hide-env --ignore-errors $key
         }
         hide-env --ignore-errors KREDENV_LOADED_VARS

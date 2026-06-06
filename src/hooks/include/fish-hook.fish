@@ -7,7 +7,9 @@
 function __kredenv_unload
     if set -q KREDENV_LOADED_VARS
         for key in (string split ',' $KREDENV_LOADED_VARS)
-            set -e $key
+            if test -n "$key"
+                set -e $key
+            end
         end
         set -e KREDENV_LOADED_VARS
         set -e KREDENV_LOADED_COUNT
