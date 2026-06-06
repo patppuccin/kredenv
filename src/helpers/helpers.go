@@ -7,9 +7,39 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/patppuccin/kredenv/src/consts"
 	"golang.org/x/crypto/argon2"
 )
+
+// General Helpers
+
+func CapitalizeErrMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	return strings.ToUpper(string(r[0])) + string(r[1:])
+}
+
+// Path Helpers
+
+func GetRootDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine home directory: %w", err)
+	}
+	return filepath.Join(home, consts.RootDirName), nil
+}
+
+// Crypto Helpers
 
 const (
 	saltSize  = 16
