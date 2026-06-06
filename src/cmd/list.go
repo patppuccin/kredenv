@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpListCmd = "List secrets from the .kredsfile or the store"
+const helpListCmd = "List secrets from the kredsfile.yaml or the store"
 
 var (
 	flagListAll        bool
@@ -63,7 +63,7 @@ func listFromKredsfile(s *store.Store, ns string) {
 		os.Exit(1)
 	}
 	if path == "" {
-		console.Warn("No .kredsfile found")
+		console.Warn("No kredsfile.yaml found")
 		os.Exit(1)
 	}
 
@@ -82,24 +82,24 @@ func listFromKredsfile(s *store.Store, ns string) {
 
 	for _, secret := range kf.Secrets {
 		if ns != "" {
-			if !strings.HasPrefix(secret.Key, ns+":") {
+			if secret.Namespace != ns {
 				continue
 			}
 		} else {
-			if strings.Contains(secret.Key, ":") {
+			if secret.Namespace != "" {
 				continue
 			}
 		}
 
-		value, err := s.Get(secret.Key)
+		value, err := s.Get(secret.VaultKey())
 		if err == nil {
 			if flagListShowValues {
-				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s = %s", secret.Alias, secret.Key, value))
+				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s = %s", secret.Alias, secret.VaultKey(), value))
 			} else {
-				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s", secret.Alias, secret.Key))
+				lookupHits = append(lookupHits, fmt.Sprintf("%s → %s", secret.Alias, secret.VaultKey()))
 			}
-		} else if !secret.Optional {
-			lookupMisses = append(lookupMisses, fmt.Sprintf("%s → %s = <not set>", secret.Alias, secret.Key))
+		} else {
+			lookupMisses = append(lookupMisses, fmt.Sprintf("%s → %s = <not set>", secret.Alias, secret.VaultKey()))
 		}
 	}
 

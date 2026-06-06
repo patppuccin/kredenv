@@ -50,7 +50,7 @@ var injectCmd = &cobra.Command{
 			return
 		}
 
-		if kf.AutoloadOff {
+		if !kf.Autoload {
 			return
 		}
 
@@ -74,16 +74,16 @@ var injectCmd = &cobra.Command{
 
 		for _, secret := range kf.Secrets {
 			if ns != "" {
-				if !strings.HasPrefix(secret.Key, ns+":") {
+				if secret.Namespace != ns {
 					continue
 				}
 			} else {
-				if strings.Contains(secret.Key, ":") {
+				if secret.Namespace != "" {
 					continue
 				}
 			}
 
-			value, err := s.Get(secret.Key)
+			value, err := s.Get(secret.VaultKey())
 			if err != nil {
 				continue
 			}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/patppuccin/kredenv/src/auth"
 	"github.com/patppuccin/kredenv/src/console"
@@ -19,12 +18,10 @@ var execExamples = `  # Execute a command with secrets from the default namespac
   kredenv exec -- node server.js
 
   # Execute a command with secrets from a specific namespace
-  kredenv exec -n staging -- terraform apply --auto-approve
-  kredenv exec -n production -- kubectl apply -f deploy.yaml`
+  kredenv exec -n production -- kubectl apply -f deploy.yaml
+  kredenv exec --namespace staging -- terraform apply plan.tfplan`
 
-var (
-	flagExecNamespace string
-)
+var flagExecNamespace string
 
 var execCmd = &cobra.Command{
 	Use:           "exec -- <command> [args...]",
@@ -42,7 +39,7 @@ var execCmd = &cobra.Command{
 
 		path, err := spec.Locate()
 		if err != nil || path == "" {
-			console.Error("No .kredsfile found")
+			console.Error("No kredsfile.yaml found")
 			os.Exit(1)
 		}
 
@@ -52,7 +49,7 @@ var execCmd = &cobra.Command{
 			for i, e := range errs {
 				errMsgs[i] = e.Error()
 			}
-			console.ErrorGroup("Failed to parse .kredsfile", errMsgs...)
+			console.ErrorGroup("Failed to parse kredsfile.yaml", errMsgs...)
 			os.Exit(1)
 		}
 
@@ -79,20 +76,18 @@ var execCmd = &cobra.Command{
 
 		for _, secret := range kf.Secrets {
 			if ns != "" {
-				if !strings.HasPrefix(secret.Key, ns+":") {
+				if secret.Namespace != ns {
 					continue
 				}
 			} else {
-				if strings.Contains(secret.Key, ":") {
+				if secret.Namespace != "" {
 					continue
 				}
 			}
 
-			value, err := s.Get(secret.Key)
+			value, err := s.Get(secret.VaultKey())
 			if err != nil {
-				if !secret.Optional {
-					missingRequired = append(missingRequired, secret.Key)
-				}
+				missingRequired = append(missingRequired, secret.VaultKey())
 				continue
 			}
 			resolved[secret.Alias] = value

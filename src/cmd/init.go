@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpInitCmd = "Initialize a .kredsfile and optionally fill in missing secrets"
+const helpInitCmd = "Initialize a kredsfile.yaml and optionally fill in missing secrets"
 
 var (
 	flagInitOverwrite bool
@@ -34,18 +34,14 @@ var initCmd = &cobra.Command{
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		if flagInitFile == "" {
-			flagInitFile = ".kredsfile"
-		}
-
 		target, err := filepath.Abs(flagInitFile)
 		if err != nil {
 			console.Error("Could not resolve " + flagInitFile + ": " + err.Error())
 			os.Exit(1)
 		}
 
-		if !strings.HasSuffix(filepath.Base(target), ".kredsfile") {
-			console.Error("Kredsfile manifest must end in .kredsfile, got: " + filepath.Base(target))
+		if filepath.Base(target) != "kredsfile.yaml" {
+			console.Error("Kredsfile manifest must be named kredsfile.yaml, got: " + filepath.Base(target))
 			os.Exit(1)
 		}
 
@@ -56,7 +52,7 @@ var initCmd = &cobra.Command{
 
 		if fileExists && flagInitOverwrite {
 			if err := os.WriteFile(target, []byte(spec.MinimalTemplate), 0644); err != nil {
-				console.Error("Could not overwrite .kredsfile")
+				console.Error("Could not overwrite kredsfile.yaml")
 				os.Exit(1)
 			}
 			console.Success("Overwritten at " + target)
@@ -93,17 +89,17 @@ var initCmd = &cobra.Command{
 		}
 
 		if len(kf.Secrets) == 0 {
-			console.Warn("No secrets found in .kredsfile")
+			console.Warn("No secrets declared in kredsfile.yaml")
 			return
 		}
 
-		password, err := auth.Retrieve()
+		authPasswd, err := auth.Retrieve()
 		if err != nil {
-			console.Warn("Could not open store: run '" + consts.AppName + " setup' first to set up")
+			console.Warn("Could not open auth store: run '" + consts.AppName + " setup' first to set up")
 			return
 		}
 
-		s, err := store.Open(password)
+		s, err := store.Open(authPasswd)
 		if err != nil {
 			console.Warn("Could not open the secrets store")
 			return
@@ -119,39 +115,32 @@ var initCmd = &cobra.Command{
 		stored, skipped, alreadySet := []string{}, []string{}, []string{}
 
 		for _, secret := range kf.Secrets {
-			if ns != "" {
-				if !strings.HasPrefix(secret.Key, ns+":") {
-					continue
-				}
-			}
-
-			if _, err := s.Get(secret.Key); err == nil {
-				alreadySet = append(alreadySet, secret.Key)
+			if ns != "" && secret.Namespace != ns {
 				continue
 			}
 
-			label := secret.Key
-			if secret.Optional {
-				label += " (optional)"
+			if _, err := s.Get(secret.VaultKey()); err == nil {
+				alreadySet = append(alreadySet, secret.VaultKey())
+				continue
 			}
 
-			value, err := console.PromptSecret("Enter value for " + label)
+			value, err := console.PromptSecret("Enter value for " + secret.VaultKey())
 			if err != nil {
 				console.Error("Could not read input")
 				os.Exit(1)
 			}
 
 			if value == "" {
-				skipped = append(skipped, secret.Key)
+				skipped = append(skipped, secret.VaultKey())
 				continue
 			}
 
-			if err := s.Set(secret.Key, value); err != nil {
-				console.Error("Could not store " + secret.Key)
+			if err := s.Set(secret.VaultKey(), value); err != nil {
+				console.Error("Could not store " + secret.VaultKey())
 				os.Exit(1)
 			}
 
-			stored = append(stored, secret.Key)
+			stored = append(stored, secret.VaultKey())
 		}
 
 		if len(stored) == 0 && len(skipped) == 0 {
@@ -184,8 +173,8 @@ var initCmd = &cobra.Command{
 
 func init() {
 	initCmd.Flags().SortFlags = false
-	initCmd.Flags().BoolVar(&flagInitOverwrite, "overwrite", false, "Overwrite existing .kredsfile")
+	initCmd.Flags().BoolVar(&flagInitOverwrite, "overwrite", false, "Overwrite existing kredsfile.yaml")
 	initCmd.Flags().BoolVar(&flagInitNoSetup, "no-setup", false, "Skip the interactive secret prompting after init")
-	initCmd.Flags().StringVarP(&flagInitFile, "file", "f", ".kredsfile", "Path to the kredsfile (must end in .kredsfile)")
+	initCmd.Flags().StringVarP(&flagInitFile, "file", "f", "kredsfile.yaml", "Path to the kredenv manifest file")
 	initCmd.Flags().StringVarP(&flagInitNamespace, "namespace", "n", "", "Fill in secrets only for a specific namespace")
 }

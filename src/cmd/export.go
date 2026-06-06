@@ -78,7 +78,6 @@ var exportCmd = &cobra.Command{
 			return
 		}
 
-		// Filter only the required namespaces if specified
 		if len(flagExportNamespaces) > 0 {
 			nsSet := map[string]bool{}
 			for _, ns := range flagExportNamespaces {
@@ -95,7 +94,6 @@ var exportCmd = &cobra.Command{
 			}
 		}
 
-		// Prompt for encryption password if encrypting
 		var encPassword string
 		if flagExportEncrypt {
 			encPassword, err = console.PromptSecret("Enter encryption password: ")
@@ -259,7 +257,12 @@ func collectGroupedSecrets(s *store.Store) (map[string]map[string]string, []erro
 			return nil, []error{err}
 		}
 		for key, value := range data {
-			ns, keyName := spec.SplitNamespacedKey(key)
+			ns, keyName, _ := strings.Cut(key, ":")
+			if keyName == "" {
+				// no colon — flat key, ns is actually the key name
+				keyName = ns
+				ns = ""
+			}
 			if _, ok := grouped[ns]; !ok {
 				grouped[ns] = map[string]string{}
 			}
@@ -273,7 +276,7 @@ func collectGroupedSecrets(s *store.Store) (map[string]map[string]string, []erro
 		return nil, []error{err}
 	}
 	if path == "" {
-		return nil, []error{fmt.Errorf("no .kredsfile found")}
+		return nil, []error{fmt.Errorf("no kredsfile.yaml found")}
 	}
 
 	kf, errs := spec.Parse(path)
@@ -283,14 +286,12 @@ func collectGroupedSecrets(s *store.Store) (map[string]map[string]string, []erro
 
 	var collectErrs []error
 	for _, secret := range kf.Secrets {
-		value, err := s.Get(secret.Key)
+		value, err := s.Get(secret.VaultKey())
 		if err != nil {
-			if !secret.Optional {
-				collectErrs = append(collectErrs, fmt.Errorf("missing required key: %s", secret.Key))
-			}
+			collectErrs = append(collectErrs, fmt.Errorf("missing required key: %s", secret.VaultKey()))
 			continue
 		}
-		ns, _ := spec.SplitNamespacedKey(secret.Key)
+		ns := secret.Namespace
 		if _, ok := grouped[ns]; !ok {
 			grouped[ns] = map[string]string{}
 		}
