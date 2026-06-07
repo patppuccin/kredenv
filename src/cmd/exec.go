@@ -31,12 +31,13 @@ var execCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Example:       execExamples,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			termactions.Log().Error("No command provided to execute")
 			os.Exit(1)
 		}
-
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		path, err := spec.Locate()
 		if err != nil || path == "" {
 			termactions.Log().Error("No kredsfile.yaml found")
