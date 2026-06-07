@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/patppuccin/kredenv/src/auth"
 	"github.com/patppuccin/kredenv/src/store"
@@ -24,12 +25,18 @@ var getCmd = &cobra.Command{
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) != 1 {
 			termactions.Log().Error("Expected exactly one argument, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
-
+		// fail if both colon syntax and --namespace flag are used
+		if flagGetNamespace != "" && strings.Contains(args[0], ":") {
+			termactions.Log().Error("Cannot use both 'namespace:key' syntax and --namespace (-n) flag")
+			os.Exit(1)
+		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
 		if flagGetNamespace != "" {
 			key = flagGetNamespace + ":" + key
