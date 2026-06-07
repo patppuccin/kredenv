@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mattn/go-isatty"
 	"github.com/patppuccin/kredenv/src/auth"
@@ -24,7 +25,7 @@ var setCmd = &cobra.Command{
 	GroupID:       "secrets",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		switch len(args) {
 		case 0:
 			termactions.Log().Error("Expected at least one argument, got 0")
@@ -34,7 +35,12 @@ var setCmd = &cobra.Command{
 			termactions.Log().Error("Expected at most two arguments, got " + fmt.Sprintf("%d", len(args)))
 			os.Exit(1)
 		}
-
+		if flagSetNamespace != "" && strings.Contains(args[0], ":") {
+			termactions.Log().Error("Cannot use both 'namespace:key' syntax and --namespace (-n) flag")
+			os.Exit(1)
+		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
 		if flagSetNamespace != "" {
 			key = flagSetNamespace + ":" + key
@@ -52,7 +58,11 @@ var setCmd = &cobra.Command{
 			var err error
 			value, err = termactions.Secret().WithLabel("Value for " + key).Render()
 			if err != nil {
-				termactions.Log().Error("Could not read input")
+				if err == termactions.ErrInterrupted {
+					termactions.Log().Warn("Set action aborted by user")
+					os.Exit(1)
+				}
+				termactions.Log().Error("Could not read user input")
 				os.Exit(1)
 			}
 		}
