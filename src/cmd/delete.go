@@ -23,12 +23,13 @@ var deleteCmd = &cobra.Command{
 	Aliases:       []string{"del"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			termactions.Log().Error("Expected at least one argument, got 0")
 			os.Exit(1)
 		}
-
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		password, err := auth.Retrieve()
 		if err != nil {
 			termactions.Log().Error(err.Error())
@@ -47,10 +48,10 @@ var deleteCmd = &cobra.Command{
 				key = flagDeleteNamespace + ":" + key
 			}
 			if err := s.Delete(key); err != nil {
-				termactions.Log().Error(err.Error())
-				os.Exit(1)
+				termactions.Log().Error("Could not delete " + key + ": " + err.Error())
+				continue
 			}
-			termactions.Log().Info("Deleted " + key)
+			termactions.Log().Success("Deleted " + key)
 		}
 	},
 }
