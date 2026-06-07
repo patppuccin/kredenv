@@ -57,7 +57,7 @@ var validateCmd = &cobra.Command{
 
 		if len(kf.Secrets) == 0 {
 			termactions.Log().Warn("No secrets declared in " + kp)
-			os.Exit(0)
+			return
 		}
 
 		termactions.Log().Success("Valid kredsfile.yaml with " + strconv.Itoa(len(kf.Secrets)) + " secrets at " + kp)
