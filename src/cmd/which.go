@@ -18,11 +18,13 @@ var whichCmd = &cobra.Command{
 	GroupID:       "env",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
 			termactions.Log().Error("No arguments expected, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
 		kp, err := spec.Locate()
 		if err != nil {
 			termactions.Log().Error(err.Error())
