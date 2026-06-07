@@ -151,7 +151,7 @@ var importCmd = &cobra.Command{
 
 		if !flagImportNoKredsfile {
 			if err := updateOrCreateKredsfile(grouped); err != nil {
-				termactions.Log().Error("Could not update .kredsfile: " + err.Error())
+				termactions.Log().Error("Could not update kredsfile.yaml: " + err.Error())
 				os.Exit(1)
 			}
 		}
@@ -240,7 +240,7 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	path, err := spec.Locate()
 	if err != nil || path == "" {
 		newFile = true
-		path = filepath.Join(".", ".kredsfile")
+		path = filepath.Join(".", "kredsfile.yaml")
 	}
 
 	var existing []spec.Secret
@@ -251,7 +251,7 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 			for i, e := range errs {
 				errMsgs[i] = e.Error()
 			}
-			return fmt.Errorf("could not parse existing .kredsfile: %s", strings.Join(errMsgs, ", "))
+			return fmt.Errorf("could not parse existing kredsfile.yaml: %s", strings.Join(errMsgs, ", "))
 		}
 		existing = kf.Secrets
 	}
@@ -264,10 +264,11 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	var lines []string
 
 	if newFile {
-		lines = append(lines, "# File created by kredenv")
-		lines = append(lines, "# recurse to 0 # uncomment this to recurse secrets")
+		lines = append(lines, "# kredsfile.yaml - created by kredenv import")
+		lines = append(lines, "# recurse: 3        # walk up N levels looking for a kredsfile.yaml")
+		lines = append(lines, "# autoload: true    # inject secrets into shell on cd (default: false)")
 		lines = append(lines, "")
-		lines = append(lines, "# autoload # uncomment this to autoload secrets (accepts 'on', 'off', or 'for <namespace>')")
+		lines = append(lines, "secrets:")
 	}
 
 	for ns, secrets := range grouped {
@@ -284,9 +285,9 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 			}
 
 			if ns == "" || ns == "_default" {
-				lines = append(lines, "needs "+key)
+				lines = append(lines, fmt.Sprintf("  - key: %s", key))
 			} else {
-				lines = append(lines, fmt.Sprintf("needs %s as %s", storeKey, key))
+				lines = append(lines, fmt.Sprintf("  - key: %s\n    namespace: %s\n    alias: %s", key, ns, key))
 			}
 		}
 	}
@@ -297,7 +298,7 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("could not open .kredsfile: %w", err)
+		return fmt.Errorf("could not open kredsfile.yaml: %w", err)
 	}
 	defer f.Close()
 
@@ -314,9 +315,9 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 	}
 
 	if newFile {
-		termactions.Log().Success("Created .kredsfile at " + path)
+		termactions.Log().Success("Created kredsfile.yaml at " + path)
 	} else {
-		termactions.Log().Success("Updated .kredsfile at " + path)
+		termactions.Log().Success("Updated kredsfile.yaml at " + path)
 	}
 	return nil
 }
@@ -324,6 +325,6 @@ func updateOrCreateKredsfile(grouped map[string]map[string]string) error {
 func init() {
 	importCmd.Flags().SortFlags = false
 	importCmd.Flags().BoolVar(&flagImportOverwrite, "overwrite", false, "Overwrite existing keys if they already exist in the store")
-	importCmd.Flags().BoolVar(&flagImportNoKredsfile, "no-kredsfile", false, "Skip updating or creating a .kredsfile")
+	importCmd.Flags().BoolVar(&flagImportNoKredsfile, "no-kredsfile", false, "Skip updating or creating a kredsfile.yaml")
 	importCmd.Flags().StringArrayVarP(&flagImportNamespaces, "namespaces", "n", []string{}, "Import one or more specific namespaces from the file")
 }

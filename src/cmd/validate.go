@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpValidateCmd = "Validates .kredsfile syntax"
+const helpValidateCmd = "Validates kredsfile.yaml syntax"
 
 var validateCmd = &cobra.Command{
 	Use:           "validate [file]",
@@ -30,7 +30,7 @@ var validateCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			if kp == "" {
-				termactions.Log().Error("No .kredsfile found")
+				termactions.Log().Error("No kredsfile.yaml found")
 				os.Exit(1)
 			}
 		case 1:
@@ -51,7 +51,7 @@ var validateCmd = &cobra.Command{
 			for i, err := range errs {
 				errMsgs[i] = err.Error()
 			}
-			termactions.LogGroup().Error("Failed to parse .kredsfile", errMsgs...)
+			termactions.LogGroup().Error("Failed to parse kredsfile.yaml", errMsgs...)
 			os.Exit(1)
 		}
 
@@ -60,7 +60,7 @@ var validateCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		termactions.Log().Success("Valid .kredsfile with " + strconv.Itoa(len(kf.Secrets)) + " secrets at " + kp)
+		termactions.Log().Success("Valid kredsfile.yaml with " + strconv.Itoa(len(kf.Secrets)) + " secrets at " + kp)
 
 	},
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpLoadCmd = "Loads the secrets from the .kredsfile in scope into the environment"
+const helpLoadCmd = "Loads the secrets from the kredsfile.yaml in scope into the environment"
 
 var (
 	flagLoadNamespace string
