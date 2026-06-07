@@ -21,13 +21,15 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/patppuccin/kredenv/consts.AppVersion={{.Version}}
+      - -X github.com/patppuccin/kredenv/src/consts.AppVersion={{.Version}}
+      - -X github.com/patppuccin/kredenv/src/consts.BuildCommit={{.ShortCommit}}
+      - -X github.com/patppuccin/kredenv/src/consts.BuildDate={{.Date}}
     flags:
       - -trimpath
 
 archives:
   - formats: [tar.gz]
-    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ if eq .Arch \"amd64\" }}x86_64{{ else if eq .Arch \"386\" }}i386{{ else }}{{ .Arch }}{{ end }}"
+    name_template: '{{ .ProjectName }}-{{ .Os }}-{{ if eq .Arch "amd64" }}x86_64{{ else if eq .Arch "386" }}i386{{ else }}{{ .Arch }}{{ end }}'
     format_overrides:
       - goos: windows
         formats: [zip]
