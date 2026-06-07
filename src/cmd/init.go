@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-isatty"
@@ -29,11 +30,15 @@ var initCmd = &cobra.Command{
 	Short:         helpInitCmd,
 	Long:          banner(helpInitCmd),
 	GroupID:       "setup",
-	Args:          cobra.NoArgs,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if len(args) > 0 {
+			termactions.Log().Error("No arguments expected, got " + strconv.Itoa(len(args)))
+			os.Exit(1)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
-
 		target, err := filepath.Abs(flagInitFile)
 		if err != nil {
 			termactions.Log().Error("Could not resolve " + flagInitFile + ": " + err.Error())
@@ -70,11 +75,7 @@ var initCmd = &cobra.Command{
 			termactions.Log().Info("Using existing manifest at " + target)
 		}
 
-		if flagInitNoSetup {
-			return
-		}
-
-		if !isatty.IsTerminal(os.Stdin.Fd()) {
+		if flagInitNoSetup || !isatty.IsTerminal(os.Stdin.Fd()) {
 			return
 		}
 
