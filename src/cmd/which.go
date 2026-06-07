@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const helpWhichCmd = "Prints the path to the .kredsfile that will be used"
+const helpWhichCmd = "Prints the path to the kredsfile.yaml that will be used"
 
 var whichCmd = &cobra.Command{
 	Use:           "which",
@@ -29,7 +29,7 @@ var whichCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		if kp == "" {
-			termactions.Log().Warn("Could not locate .kredsfile")
+			termactions.Log().Warn("No kredsfile.yaml found in scope")
 			os.Exit(1)
 		}
 		termactions.Log().Info("Located kredsfile at: " + kp)
