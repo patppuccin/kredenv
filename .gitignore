@@ -1,10 +1,6 @@
-# .gitignore for KREDENV
-
-# Builds and releases
-dist/
-release/
-
 # Binaries
+kredenv
+kredenv.exe
 *.exe
 *.exe~
 *.dll
@@ -15,10 +11,29 @@ release/
 *.test
 *.out
 coverage.*
+*.coverprofile
+profile.cov
+
+# Node artifacts
+node_modules/
+
+# VitePress artifacts
+docs/.vitepress/dist
+docs/.vitepress/cache
 
 # Go workspace
 go.work
 go.work.sum
 
-# Env files
-.env
+# Build output
+dist/
+release/
+bin/
+
+# Editor/IDE artifacts
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
