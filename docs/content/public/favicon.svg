@@ -1,0 +1,21 @@
+<!-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"> -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 120 120" width="100" height="100">
+    <metadata>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+            xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <rdf:Description>
+                <dc:creator>RealFaviconGenerator</dc:creator>
+                <dc:source>https://realfavicongenerator.net</dc:source>
+            </rdf:Description>
+        </rdf:RDF>
+    </metadata>
+    <path d="M28 52 L28 36 Q28 12 50 12 Q72 12 72 36 L72 52" fill="none" stroke="#9aa5b4"
+        stroke-width="14" stroke-linecap="round"></path>
+    <path d="M28 52 L28 36 Q28 12 50 12 Q72 12 72 36 L72 52" fill="none" stroke="#c8d0da"
+        stroke-width="7" stroke-linecap="round"></path>
+    <rect x="16" y="48" width="68" height="50" rx="10" fill="#c87010"></rect>
+    <rect x="16" y="46" width="68" height="50" rx="10" fill="#f5a623"></rect>
+    <rect x="16" y="46" width="68" height="25" rx="10" fill="#f7b84b" opacity="0.6"></rect>
+    <circle cx="50" cy="66" r="7" fill="#5a6270"></circle>
+    <rect x="46.5" y="71" width="7" height="10" rx="2" fill="#5a6270"></rect>
+</svg>
