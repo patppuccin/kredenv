@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strings"
 
 	"github.com/patppuccin/kredenv/src/auth"
 	"github.com/patppuccin/kredenv/src/store"
@@ -27,6 +28,14 @@ var deleteCmd = &cobra.Command{
 		if len(args) == 0 {
 			termactions.Log().Error("Expected at least one argument, got 0")
 			os.Exit(1)
+		}
+		if flagDeleteNamespace != "" {
+			for _, arg := range args {
+				if strings.Contains(arg, ":") {
+					termactions.Log().Error("Cannot use both 'namespace:key' syntax and --namespace (-n) flag")
+					os.Exit(1)
+				}
+			}
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
