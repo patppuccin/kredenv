@@ -16,33 +16,23 @@ var MinimalTemplate = `# kredsfile.yaml
 # autoload: true                   # inject secrets into shell on cd (default: false)
 # autoload_namespace: development  # namespace to autoload (default: secrets without namespace)
 
-secrets: []
+secrets:
   # - key: MY_SECRET
   #
   # - key: DATABASE_PASSWORD
-  #   alias: DB_PASSWORD
   #   namespace: production
   #
   # - key: GOOGLE_ANALYTICS_ID
-  #   alias: ANALYTICS_ID
 `
 
 type Secret struct {
 	Key       string `yaml:"key"`
 	Namespace string `yaml:"namespace,omitempty"`
-	Alias     string `yaml:"alias,omitempty"`
 }
 
 func (s Secret) VaultKey() string {
 	if s.Namespace != "" {
 		return s.Namespace + ":" + s.Key
-	}
-	return s.Key
-}
-
-func (s Secret) EnvKey() string {
-	if s.Alias != "" {
-		return s.Alias
 	}
 	return s.Key
 }
@@ -109,15 +99,19 @@ func Parse(path string) (*Kredsfile, []error) {
 	}
 
 	var parseErrs []error
+	vaultKeys := map[string]struct{}{}
 
 	for i, s := range kf.Secrets {
 		if s.Key == "" {
 			parseErrs = append(parseErrs, fmt.Errorf("secret at index %d is missing required field 'key'", i))
 			continue
 		}
-		if s.Namespace != "" && s.Alias == "" {
-			parseErrs = append(parseErrs, fmt.Errorf("secret %q has a namespace but no alias", s.Key))
+		vk := s.VaultKey()
+		if _, ok := vaultKeys[vk]; ok {
+			parseErrs = append(parseErrs, fmt.Errorf("duplicate secret %q", vk))
+			continue
 		}
+		vaultKeys[vk] = struct{}{}
 	}
 
 	if kf.AutoloadNamespace != "" {

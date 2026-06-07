@@ -91,7 +91,7 @@ var execCmd = &cobra.Command{
 				continue
 			}
 
-			resolved[secret.EnvKey()] = value
+			resolved[secret.Key] = value
 		}
 
 		if len(missingRequired) > 0 {
