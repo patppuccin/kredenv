@@ -20,7 +20,7 @@ var unloadCmd = &cobra.Command{
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if os.Getenv("__KREDENV_BIN") == "" {
-			termactions.Log().Warn("Shell hook not detected, run '" + consts.AppName + " hook <shell>' to set up")
+			termactions.Log().Error("Shell hook not detected, run '" + consts.AppName + " hook <shell>' to set up")
 			return
 		}
 
