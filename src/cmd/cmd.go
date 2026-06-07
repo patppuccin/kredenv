@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/patppuccin/kredenv/src/consts"
@@ -9,21 +11,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func banner(msg string) string {
+	return consts.AppBanner + "\n" +
+		color.New(color.FgBlue).Sprint(msg) + "\n"
+}
+
+func versionString() string {
+	date := consts.BuildDate
+	if t, err := time.Parse(time.RFC3339, consts.BuildDate); err == nil {
+		date = t.UTC().Format("02 Jan 2006 15:04 UTC")
+	}
+	return fmt.Sprintf("%s (commit: %s, built: %s)", consts.AppVersion, consts.BuildCommit, date)
+}
+
 var KredEnvCmd = &cobra.Command{
 	Use:           consts.AppName,
 	Short:         consts.AppDesc,
 	Long:          banner(consts.AppDesc),
-	Version:       consts.AppVersion,
+	Version:       versionString(),
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
-}
-
-func banner(msg string) string {
-	return consts.AppBanner + "\n" +
-		color.New(color.FgBlue).Sprint(msg) + "\n"
 }
 
 func init() {

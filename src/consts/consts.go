@@ -8,6 +8,8 @@ const AppName = "kredenv"
 const AppDesc = "Inject env vars & secrets into your shell environment"
 
 var AppVersion = "dev"
+var BuildCommit = "none"
+var BuildDate = "unknown"
 
 const RootDirName = ".kredenv"
 const AuthEnvVar = "KREDENTIAL"
