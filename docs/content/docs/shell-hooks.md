@@ -88,7 +88,8 @@ If this prints the path to the kredenv binary, the hook is installed and active.
 
 kredenv exposes two environment variables for use in prompt frameworks:
 
-- `KREDENV_LOADED_COUNT` — number of secrets currently loaded
-- `KREDENV_LOADED_VARS` — comma-separated list of loaded secret names
+- `__KREDENV_LOADED_NS` — namespace currently loaded
+- `__KREDENV_LOADED_COUNT` — number of secrets currently loaded
+- `__KREDENV_LOADED_VARS` — comma-separated list of loaded secret names
 
 See [Prompt Frameworks](/docs/prompt-frameworks) for setup examples.

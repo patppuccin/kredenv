@@ -4,10 +4,11 @@ kredenv exposes environment variables that prompt frameworks can use to display 
 
 ## Available Variables
 
-| Variable               | Description                                 |
-| ---------------------- | ------------------------------------------- |
-| `KREDENV_LOADED_COUNT` | Number of secrets currently loaded          |
-| `KREDENV_LOADED_VARS`  | Comma-separated list of loaded secret names |
+| Variable                 | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `__KREDENV_LOADED_NS`    | Namespace currently loaded                  |
+| `__KREDENV_LOADED_COUNT` | Number of secrets currently loaded          |
+| `__KREDENV_LOADED_VARS`  | Comma-separated list of loaded secret names |
 
 Any prompt framework that supports environment variable modules can integrate with kredenv using these variables.
 
@@ -23,25 +24,31 @@ $username\
 at $hostname \
 in $directory \
 (on $git_branch )\
-(with ${env_var.kredenv})\
+(with ${env_var.kredenv} )(${env_var.kredenv_ns} )\
 $line_break\
 $character\
 """
 
 [env_var.kredenv]
-variable = "KREDENV_LOADED_COUNT"
-format = "[$symbol $env_value secrets]($style) "
-symbol = "🔑"
+variable = "__KREDENV_LOADED_COUNT"
+format = "[$symbol $env_value]($style)"
+symbol = "🔒"
+style = "bold yellow"
+disabled = false
+
+[env_var.kredenv_ns]
+variable = "__KREDENV_LOADED_NS"
+format = "[\\($env_value\\)]($style)"
 style = "bold yellow"
 disabled = false
 ```
 
-This displays a key emoji and the number of loaded secrets whenever a `kredsfile.yaml` is in scope with `autoload: true`.
+This displays a lock emoji and the number of loaded secrets whenever a `kredsfile.yaml` is in scope with `autoload: true`.
 
 **Example prompt output:**
 
 ```
-patppuccin at athena in ~/projects/myapp on main with 🔑 3 secrets
+patppuccin at athena in ~/projects/myapp on main with 🔒 3 (dev)
 ❯
 ```
 
