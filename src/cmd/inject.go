@@ -72,6 +72,11 @@ var injectCmd = &cobra.Command{
 
 		resolved := map[string]string{}
 
+		// inject namespace as env var for tracking
+		if ns != "" {
+			resolved["__KREDENV_LOADED_NS"] = ns
+		}
+
 		for _, secret := range kf.Secrets {
 			if ns != "" {
 				if secret.Namespace != ns {

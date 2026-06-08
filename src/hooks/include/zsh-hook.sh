@@ -3,14 +3,15 @@
 # Initialize by adding the following to ~/.zshrc:
 # eval "$(kredenv hook zsh)"
 
-# Unload secrets tracked in KREDENV_LOADED_VARS
+# Unload secrets tracked in __KREDENV_LOADED_VARS
 __kredenv_unload() {
-    if [[ -n "${KREDENV_LOADED_VARS:-}" ]]; then
-        for key in ${(s:,:)KREDENV_LOADED_VARS}; do
+    if [[ -n "${__KREDENV_LOADED_VARS:-}" ]]; then
+        for key in ${(s:,:)__KREDENV_LOADED_VARS}; do
             unset "$key"
         done
-        unset KREDENV_LOADED_VARS
-        unset KREDENV_LOADED_COUNT
+        unset __KREDENV_LOADED_NS
+        unset __KREDENV_LOADED_VARS
+        unset __KREDENV_LOADED_COUNT
     fi
 }
 
@@ -21,14 +22,16 @@ __kredenv_load() {
         local key="${line%%=*}"
         local value="${line#*=}"
         export "$key=$value"
-        keys="${keys:+$keys,}$key"
+        if [[ "$key" != __KREDENV_* ]]; then
+            keys="${keys:+$keys,}$key"
+        fi
     done <<< "$1"
-    export KREDENV_LOADED_VARS="$keys"
+    export __KREDENV_LOADED_VARS="$keys"
     local count=0
     if [[ -n "$keys" ]]; then
         count=$(tr ',' '\n' <<< "$keys" | wc -l | tr -d ' ')
     fi
-    export KREDENV_LOADED_COUNT="$count"
+    export __KREDENV_LOADED_COUNT="$count"
 }
 
 # Hook to reload secrets on directory change

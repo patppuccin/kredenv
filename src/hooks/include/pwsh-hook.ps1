@@ -5,25 +5,30 @@
 
 # Unload secrets tracked in KREDENV_LOADED_VARS
 function global:_KredenvUnload {
-    if ($null -ne $env:KREDENV_LOADED_VARS -and $env:KREDENV_LOADED_VARS -ne "") {
-        foreach ($Key in ($env:KREDENV_LOADED_VARS -split ",")) {
+    if ($null -ne $env:__KREDENV_LOADED_VARS -and $env:__KREDENV_LOADED_VARS -ne "") {
+        foreach ($Key in ($env:__KREDENV_LOADED_VARS -split ",")) {
             if ($Key -ne "") {
                 Remove-Item -Path "Env:$Key" -ErrorAction SilentlyContinue
             }
         }
-        Remove-Item -Path "Env:KREDENV_LOADED_VARS" -ErrorAction SilentlyContinue
-        Remove-Item -Path "Env:KREDENV_LOADED_COUNT" -ErrorAction SilentlyContinue
+        Remove-Item -Path "Env:__KREDENV_LOADED_NS" -ErrorAction SilentlyContinue
+        Remove-Item -Path "Env:__KREDENV_LOADED_VARS" -ErrorAction SilentlyContinue
+        Remove-Item -Path "Env:__KREDENV_LOADED_COUNT" -ErrorAction SilentlyContinue
     }
 }
 
 # Load secrets from inject output
 function global:_KredenvLoad {
     param([hashtable]$Secrets)
+    $userKeys = @()
     foreach ($Entry in $Secrets.GetEnumerator()) {
         Set-Item -Path "Env:$($Entry.Key)" -Value $Entry.Value
+        if (-not $Entry.Key.StartsWith("__KREDENV_")) {
+            $userKeys += $Entry.Key
+        }
     }
-    $env:KREDENV_LOADED_VARS = ($Secrets.Keys -join ",")
-    $env:KREDENV_LOADED_COUNT = $Secrets.Count
+    $env:__KREDENV_LOADED_VARS = ($userKeys -join ",")
+    $env:__KREDENV_LOADED_COUNT = $userKeys.Count
 }
 
 # Hook to detect directory change

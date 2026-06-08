@@ -24,7 +24,7 @@ var unloadCmd = &cobra.Command{
 			return
 		}
 
-		if os.Getenv("KREDENV_LOADED_VARS") != "" {
+		if os.Getenv("__KREDENV_LOADED_VARS") != "" {
 			termactions.Log().Error("Unload failed, secrets still present in session")
 			os.Exit(1)
 		}

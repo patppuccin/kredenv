@@ -3,16 +3,17 @@
 # Initialize by adding the following to ~/.config/fish/config.fish:
 # kredenv hook fish | source
 
-# Unload secrets tracked in KREDENV_LOADED_VARS
+# Unload secrets tracked in __KREDENV_LOADED_VARS
 function __kredenv_unload
-    if set -q KREDENV_LOADED_VARS
-        for key in (string split ',' $KREDENV_LOADED_VARS)
+    if set -q __KREDENV_LOADED_VARS
+        for key in (string split ',' $__KREDENV_LOADED_VARS)
             if test -n "$key"
                 set -e $key
             end
         end
-        set -e KREDENV_LOADED_VARS
-        set -e KREDENV_LOADED_COUNT
+        set -e __KREDENV_LOADED_NS
+        set -e __KREDENV_LOADED_VARS
+        set -e __KREDENV_LOADED_COUNT
     end
 end
 
@@ -24,10 +25,12 @@ function __kredenv_load
         set -l key $parts[1]
         set -l value $parts[2]
         set -gx $key $value
-        set -a keys $key
+        if not string match -q '__KREDENV_*' $key
+            set -a keys $key
+        end
     end
-    set -gx KREDENV_LOADED_VARS (string join ',' $keys)
-    set -gx KREDENV_LOADED_COUNT (count $keys)
+    set -gx __KREDENV_LOADED_VARS (string join ',' $keys)
+    set -gx __KREDENV_LOADED_COUNT (count $keys)
 end
 
 # Hook to detect directory change

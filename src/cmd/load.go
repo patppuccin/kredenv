@@ -34,7 +34,7 @@ var loadCmd = &cobra.Command{
 			return
 		}
 
-		loaded := os.Getenv("KREDENV_LOADED_VARS")
+		loaded := os.Getenv("__KREDENV_LOADED_VARS")
 		if loaded == "" {
 			termactions.Log().Warn("No secrets currently loaded")
 			return

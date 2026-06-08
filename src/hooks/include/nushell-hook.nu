@@ -3,22 +3,24 @@
 # Initialize by saving to your autoload directory:
 # kredenv hook nushell | save -f ($nu.default-config-dir | path join "autoload" "kredenv.nu")
 
-# Unload secrets tracked in KREDENV_LOADED_VARS
+# Unload secrets tracked in __KREDENV_LOADED_VARS
 def --env _kredenv_unload [] {
-    if ($env.KREDENV_LOADED_VARS? | is-not-empty) {
-        for key in ($env.KREDENV_LOADED_VARS | split row "," | where { |k| ($k | str trim) | is-not-empty }) {
+    if ($env.__KREDENV_LOADED_VARS? | is-not-empty) {
+        for key in ($env.__KREDENV_LOADED_VARS | split row "," | where { |k| ($k | str trim) | is-not-empty }) {
             hide-env --ignore-errors $key
         }
-        hide-env --ignore-errors KREDENV_LOADED_VARS
-        hide-env --ignore-errors KREDENV_LOADED_COUNT
+        hide-env --ignore-errors __KREDENV_LOADED_NS
+        hide-env --ignore-errors __KREDENV_LOADED_VARS
+        hide-env --ignore-errors __KREDENV_LOADED_COUNT
     }
 }
 
 # Load secrets from inject output
 def --env _kredenv_load [secrets: record] {
     load-env $secrets
-    $env.KREDENV_LOADED_VARS = ($secrets | columns | str join ",")
-    $env.KREDENV_LOADED_COUNT = ($secrets | columns | length | into string)
+    let user_keys = ($secrets | columns | where { |k| not ($k | str starts-with "__KREDENV_") })
+    $env.__KREDENV_LOADED_VARS = ($user_keys | str join ",")
+    $env.__KREDENV_LOADED_COUNT = ($user_keys | length | into string)
 }
 
 # Initialization hook (safe to source multiple times)
