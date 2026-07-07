@@ -17,6 +17,7 @@ const helpListCmd = "List secrets from the kredsfile.yaml or the store"
 
 var (
 	flagListAll        bool
+	flagListLoaded     bool
 	flagListShowValues bool
 	flagListNamespace  string
 )
@@ -29,10 +30,23 @@ var listCmd = &cobra.Command{
 	Aliases:       []string{"ls"},
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Run: func(cmd *cobra.Command, args []string) {
+	PreRun: func(cmd *cobra.Command, args []string) {
 		if len(args) > 0 {
 			termactions.Log().Error("No arguments expected, got " + strconv.Itoa(len(args)))
 			os.Exit(1)
+		}
+		if flagListAll && flagListLoaded {
+			termactions.LogGroup().Error("Invalid flag combination", "Only one of --all or --loaded may be used at a time")
+			os.Exit(1)
+		}
+		if flagListLoaded && flagListNamespace != "" {
+			termactions.Log().Warn("Flag --namespace is ignored in --loaded mode")
+		}
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		if flagListLoaded {
+			listFromShell()
+			return
 		}
 
 		password, err := auth.Retrieve()
@@ -56,6 +70,36 @@ var listCmd = &cobra.Command{
 	},
 }
 
+func listFromShell() {
+	if configured := os.Getenv("__KREDENV_BIN"); configured == "" {
+		termactions.Log().Warn("kredenv is not configured for current shell")
+		return
+	}
+
+	loaded := os.Getenv("__KREDENV_LOADED_VARS")
+	if loaded == "" {
+		termactions.Log().Warn("No kredenv secrets loaded in current shell session")
+		return
+	}
+
+	keys := strings.Split(loaded, ",")
+	entries := make([]string, 0, len(keys))
+
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if flagListShowValues {
+			entries = append(entries, fmt.Sprintf("%s = %s", key, os.Getenv(key)))
+		} else {
+			entries = append(entries, key)
+		}
+	}
+
+	termactions.LogGroup().Info(fmt.Sprintf("%d secrets loaded in current shell session", len(keys)), entries...)
+}
+
 func listFromKredsfile(s *store.Store, ns string) {
 	path, err := spec.Locate()
 	if err != nil {
@@ -63,7 +107,7 @@ func listFromKredsfile(s *store.Store, ns string) {
 		os.Exit(1)
 	}
 	if path == "" {
-		termactions.Log().Warn("No kredsfile.yaml found")
+		termactions.Log().Warn("No kredsfile.yaml found in current scope")
 		os.Exit(1)
 	}
 
@@ -75,6 +119,10 @@ func listFromKredsfile(s *store.Store, ns string) {
 		}
 		termactions.LogGroup().Error("Failed to parse "+path, errMsgs...)
 		os.Exit(1)
+	}
+
+	if ns == "" && kf.AutoloadNamespace != "" {
+		ns = kf.AutoloadNamespace
 	}
 
 	var lookupHits []string
@@ -94,20 +142,30 @@ func listFromKredsfile(s *store.Store, ns string) {
 		value, err := s.Get(secret.VaultKey())
 		if err == nil {
 			if flagListShowValues {
-				lookupHits = append(lookupHits, fmt.Sprintf("%s = %s", secret.VaultKey(), value))
+				lookupHits = append(lookupHits, fmt.Sprintf("%s = %s", secret.Key, value))
 			} else {
-				lookupHits = append(lookupHits, secret.VaultKey())
+				lookupHits = append(lookupHits, secret.Key)
 			}
 		} else {
-			lookupMisses = append(lookupMisses, fmt.Sprintf("%s = <not set>", secret.VaultKey()))
+			lookupMisses = append(lookupMisses, fmt.Sprintf("%s = <not set>", secret.Key))
 		}
 	}
 
+	hitsHeader := fmt.Sprintf("%d secrets in scope", len(lookupHits))
+	if ns != "" {
+		hitsHeader += fmt.Sprintf(" (namespace: %s)", ns)
+	}
+
+	missHeader := fmt.Sprintf("%d secrets found, but not set in store", len(lookupMisses))
+	if ns != "" {
+		missHeader += fmt.Sprintf(" (namespace: %s)", ns)
+	}
+
 	if len(lookupHits) > 0 {
-		termactions.LogGroup().Info("The following keys were found", lookupHits...)
+		termactions.LogGroup().Info(hitsHeader, lookupHits...)
 	}
 	if len(lookupMisses) > 0 {
-		termactions.LogGroup().Warn("The following keys were not found", lookupMisses...)
+		termactions.LogGroup().Warn(missHeader, lookupMisses...)
 	}
 }
 
@@ -122,29 +180,30 @@ func listFromStore(s *store.Store, ns string) {
 		return
 	}
 
-	msgs := make([]string, 0, len(data))
+	entries := make([]string, 0, len(data))
 	for key, value := range data {
 		if ns != "" && !strings.HasPrefix(key, ns+":") {
 			continue
 		}
 		if flagListShowValues {
-			msgs = append(msgs, fmt.Sprintf("%s = %s", key, value))
+			entries = append(entries, fmt.Sprintf("%s = %s", key, value))
 		} else {
-			msgs = append(msgs, key)
+			entries = append(entries, key)
 		}
 	}
 
-	if len(msgs) == 0 && ns != "" {
+	if len(entries) == 0 && ns != "" {
 		termactions.Log().Warn("No secrets found for namespace: " + ns)
 		return
 	}
 
-	termactions.LogGroup().Info("Store secrets", msgs...)
+	termactions.LogGroup().Info(fmt.Sprintf("%d secrets found in store", len(entries)), entries...)
 }
 
 func init() {
 	listCmd.Flags().SortFlags = false
 	listCmd.Flags().BoolVar(&flagListShowValues, "show-values", false, "Show secret values (use with caution)")
-	listCmd.Flags().BoolVarP(&flagListAll, "all", "a", false, "List all secrets in the store")
+	listCmd.Flags().BoolVar(&flagListAll, "all", false, "List all secrets in the store")
+	listCmd.Flags().BoolVar(&flagListLoaded, "loaded", false, "List all secrets loaded in the current shell")
 	listCmd.Flags().StringVarP(&flagListNamespace, "namespace", "n", "", "Filter by namespace")
 }
