@@ -103,7 +103,7 @@ If a key is not found, kredenv logs the error and continues to the next key.
 
 ## `kredenv list`
 
-Lists secrets declared in the `kredsfile.yaml` and checks which ones are set in the vault.
+Lists secrets declared in the `kredsfile.yaml` and checks which ones are set in the store. Defaults to the `autoload_namespace` if one is set in the manifest.
 
 ```bash
 kredenv list
@@ -113,24 +113,31 @@ kredenv list
 
 | Flag              | Description                                           |
 | ----------------- | ----------------------------------------------------- |
-| `-a, --all`       | List all secrets in the vault, ignoring the kredsfile |
+| `--all`           | List all secrets in the vault, ignoring the kredsfile |
+| `--loaded`        | List secrets currently loaded in the shell session    |
 | `--show-values`   | Show secret values (use with caution)                 |
-| `-n, --namespace` | Filter by namespace                                   |
+| `-n, --namespace` | Filter by namespace (ignored when using `--loaded`)   |
+
+Note: `--all` and `--loaded` are mutually exclusive.
 
 **Examples**
 
 ```bash
-# list secrets from kredsfile.yaml and their vault status
+# list secrets from kredsfile.yaml, defaulting to autoload_namespace
 kredenv list
 
-# list all secrets in the vault
-kredenv list --all
-
-# filter by namespace
+# list secrets for a specific namespace
 kredenv list -n staging
 
-# show values
+# list all secrets in the store
+kredenv list --all
+
+# list secrets currently loaded in the shell
+kredenv list --loaded
+
+# show values alongside keys
 kredenv list --show-values
+kredenv list --loaded --show-values
 ```
 
 ---
