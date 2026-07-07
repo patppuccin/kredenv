@@ -18,15 +18,21 @@ type Store struct {
 	changed  bool
 }
 
+func Path() (string, error) {
+	rootDir, err := helpers.GetRootDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(rootDir, consts.EncFileName), nil
+}
+
 func Open(password string) (*Store, error) {
 	s := &Store{password: password, data: map[string]string{}}
 
-	rootDir, err := helpers.GetRootDir()
+	encFilePath, err := Path()
 	if err != nil {
 		return nil, err
 	}
-
-	encFilePath := filepath.Join(rootDir, consts.EncFileName)
 
 	content, err := os.ReadFile(encFilePath)
 	if err != nil {
@@ -100,12 +106,10 @@ func (s *Store) Close() error {
 		return fmt.Errorf("could not encrypt store: %w", err)
 	}
 
-	rootDir, err := helpers.GetRootDir()
+	encFilePath, err := Path()
 	if err != nil {
 		return err
 	}
-
-	encFilePath := filepath.Join(rootDir, consts.EncFileName)
 
 	// Atomic write to prevent partial writes
 	tmp := encFilePath + ".tmp"
@@ -122,14 +126,11 @@ func (s *Store) Close() error {
 }
 
 func Exists() bool {
-	rootDir, err := helpers.GetRootDir()
+	p, err := Path()
 	if err != nil {
 		return false
 	}
-
-	encFilePath := filepath.Join(rootDir, consts.EncFileName)
-
-	info, err := os.Stat(encFilePath)
+	info, err := os.Stat(p)
 	return err == nil && !info.IsDir()
 }
 

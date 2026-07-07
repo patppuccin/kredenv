@@ -12,6 +12,13 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
+func Path() (string, error) {
+	if pwd, err := keyring.Get(consts.AppName, consts.KeyringKey); err == nil && pwd != "" {
+		return "keyring", nil
+	}
+	return credentialsFilePath()
+}
+
 func Retrieve() (string, error) {
 	if pwd := os.Getenv(consts.AuthEnvVar); pwd != "" {
 		return pwd, nil
@@ -42,12 +49,11 @@ func Delete() error {
 		errs = append(errs, fmt.Errorf("could not delete credentials from keyring: %w", err))
 	}
 
-	rootDir, err := helpers.GetRootDir()
+	p, err := credentialsFilePath()
 	if err != nil {
 		errs = append(errs, err)
 	} else {
-		path := filepath.Join(rootDir, consts.AuthMasterFile)
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			errs = append(errs, fmt.Errorf("could not delete credentials file: %w", err))
 		}
 	}
@@ -58,15 +64,20 @@ func Delete() error {
 	return nil
 }
 
-func retrieveFromFile() (string, error) {
+func credentialsFilePath() (string, error) {
 	rootDir, err := helpers.GetRootDir()
 	if err != nil {
 		return "", err
 	}
+	return filepath.Join(rootDir, consts.AuthMasterFile), nil
+}
 
-	kredmasterFilePath := filepath.Join(rootDir, consts.AuthMasterFile)
-
-	data, err := os.ReadFile(kredmasterFilePath)
+func retrieveFromFile() (string, error) {
+	p, err := credentialsFilePath()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(p)
 	if err != nil {
 		return "", err
 	}
@@ -74,15 +85,12 @@ func retrieveFromFile() (string, error) {
 }
 
 func storeInFile(password string) error {
-	rootDir, err := helpers.GetRootDir()
+	p, err := credentialsFilePath()
 	if err != nil {
 		return err
 	}
-
-	kredmasterFilePath := filepath.Join(rootDir, consts.AuthMasterFile)
-
-	if err := os.WriteFile(kredmasterFilePath, []byte(password), 0600); err != nil {
-		return fmt.Errorf("could not write to %s: %w", filepath.Base(kredmasterFilePath), err)
+	if err := os.WriteFile(p, []byte(password), 0600); err != nil {
+		return fmt.Errorf("could not write to %s: %w", filepath.Base(p), err)
 	}
 	return nil
 }
