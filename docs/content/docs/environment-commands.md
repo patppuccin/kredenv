@@ -2,6 +2,16 @@
 
 Commands for loading, unloading, and executing with secrets in your shell environment.
 
+## `kredenv which`
+
+Shows paths to kredenv-managed files. Useful for debugging or scripting against kredenv's file locations.
+
+```bash
+kredenv which manifest   # path to the kredsfile.yaml in scope
+kredenv which store      # path to the encrypted secrets store
+kredenv which creds      # path to the credentials file or keyring in use
+```
+
 ---
 
 ## `kredenv load`
@@ -65,18 +75,6 @@ kredenv exec -- env | grep AWS
 **Namespace resolution**
 
 If `--namespace` is not passed, kredenv falls back to `autoload_namespace` from the `kredsfile.yaml`. If neither is set, only flat secrets (no namespace) are injected.
-
----
-
-## `kredenv which`
-
-Prints the path to the `kredsfile.yaml` that will be used in the current directory.
-
-```bash
-kredenv which
-```
-
-Useful for debugging when you're unsure which manifest is in scope.
 
 ---
 
